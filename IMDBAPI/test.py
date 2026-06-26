@@ -1,0 +1,1 @@
+import requests; r = requests.post('https://caching.graphql.imdb.com/', headers={'content-type': 'application/json'}, json={'query':'query GetTitle($id: ID!) { title(id: $id) { id } }'.replace('', ''), 'operationName':'GetTitle', 'variables':{'id':''}}); print(r.status_code, r.text)
