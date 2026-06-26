@@ -1,0 +1,415 @@
+{
+  "id": "tt0111161",
+  "title": "The Shawshank Redemption",
+  "original_title": "The Shawshank Redemption",
+  "title_type": "Movie",
+  "release_year": 1994,
+  "release_date": "1994-10-14",
+  "runtime_minutes": 142,
+  "rating": 9.3,
+  "vote_count": 3194629,
+  "metascore": 82,
+  "genres": [
+    "Drama"
+  ],
+  "plot": "A wrongfully convicted banker forms a close friendship with a hardened convict over a quarter century while retaining his humanity through simple acts of compassion.",
+  "poster_url": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg",
+  "image_dimensions": {
+    "width": 1200,
+    "height": 1800
+  },
+  "image_count": 558,
+  "video_count": 6,
+  "certificate": "R",
+  "languages": [
+    "English"
+  ],
+  "countries": [
+    "United States"
+  ],
+  "production_status": "Released",
+  "is_series": null,
+  "series_info": null,
+  "episode_count": null,
+  "credits": {
+    "Director": [
+      {
+        "name": "Frank Darabont",
+        "id": "nm0001104",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BNjk0MTkxNzQwOF5BMl5BanBnXkFtZTcwODM5OTMwNA@@._V1_.jpg"
+      }
+    ],
+    "Writers": [
+      {
+        "name": "Stephen King",
+        "id": "nm0000175",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BMjA2ODIxNDM4Nl5BMl5BanBnXkFtZTYwMjkzMzU1._V1_.jpg"
+      },
+      {
+        "name": "Frank Darabont",
+        "id": "nm0001104",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BNjk0MTkxNzQwOF5BMl5BanBnXkFtZTcwODM5OTMwNA@@._V1_.jpg"
+      }
+    ],
+    "Stars": [
+      {
+        "name": "Tim Robbins",
+        "id": "nm0000209",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BMTI1OTYxNzAxOF5BMl5BanBnXkFtZTYwNTE5ODI4._V1_.jpg",
+        "characters": [
+          "Andy Dufresne"
+        ]
+      },
+      {
+        "name": "Morgan Freeman",
+        "id": "nm0000151",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BMTc0MDMyMzI2OF5BMl5BanBnXkFtZTcwMzM2OTk1MQ@@._V1_.jpg",
+        "characters": [
+          "Ellis Boyd 'Red' Redding"
+        ]
+      },
+      {
+        "name": "Bob Gunton",
+        "id": "nm0348409",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BOWQ1ZTI1ZDgtMjhmZC00OWExLTliNWQtNzgxNTExZWIwMDJkXkEyXkFqcGc@._V1_.jpg",
+        "characters": [
+          "Warden Norton"
+        ]
+      },
+      {
+        "name": "William Sadler",
+        "id": "nm0006669",
+        "profile_image": "https://m.media-amazon.com/images/M/MV5BMTA1NjU3NDg1MTheQTJeQWpwZ15BbWU2MDI4OTcxMw@@._V1_.jpg",
+        "characters": [
+          "Heywood"
+        ]
+      }
+    ]
+  },
+  "companies": {
+    "Production Companies": [
+      {
+        "name": "Castle Rock Entertainment",
+        "id": "co0040620"
+      }
+    ],
+    "Sales Representatives / ISA": [
+      {
+        "name": "Daro Film Distribution",
+        "id": "co0110688"
+      },
+      {
+        "name": "PolyGram Film International",
+        "id": "co0022893"
+      }
+    ],
+    "Distributors": [
+      {
+        "name": "Columbia Pictures",
+        "id": "co0050868"
+      },
+      {
+        "name": "ARP Sélection",
+        "id": "co0050869"
+      },
+      {
+        "name": "Columbia TriStar Films",
+        "id": "co0539852"
+      },
+      {
+        "name": "Filmayer",
+        "id": "co0075913"
+      },
+      {
+        "name": "Lev Cinemas",
+        "id": "co0110226"
+      },
+      {
+        "name": "Norsk Filmdistribusjon",
+        "id": "co0054056"
+      },
+      {
+        "name": "Rank Film Distributors",
+        "id": "co0040156"
+      }
+    ]
+  },
+  "technical_specs": {
+    "sound_mixes": [
+      "Dolby Digital"
+    ],
+    "aspect_ratios": [
+      "1.85 : 1"
+    ],
+    "colorations": [
+      "Color",
+      "Color"
+    ]
+  },
+  "akas": [
+    {
+      "title": "The Shawshank Redemption",
+      "country": "United Arab Emirates"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Australia"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Canada"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Switzerland"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "United Kingdom"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Ireland"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "India"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Iceland"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "Malaysia"
+    },
+    {
+      "title": "The Shawshank Redemption",
+      "country": "New Zealand"
+    }
+  ],
+  "current_rank": 45,
+  "keywords": [
+    "prison",
+    "based on the works of stephen king",
+    "escape from prison",
+    "friendship between men",
+    "wrongful conviction",
+    "1940s",
+    "voice over narration",
+    "suicide by hanging",
+    "police brutality",
+    "suicide"
+  ],
+  "trailer": {
+    "id": "vi3877612057",
+    "name": "Official Trailer",
+    "url": "https://imdb-video.media-imdb.com/vi3877612057/1434659607842-pgv4ql-1616202333253.mp4?Expires=1780996893&Signature=UbjlV1T~aKemoX6V3EQiIe91L4FlFoei8fKs79KZghyP1VZ5NTsGALn8QmqWH4nPHtxpDDntLOkp8v2X3BgJjlsnUyBIzpVwzZqqQv25gFSxcDAGKhFuLIAjy4BpJjgiEwAPJvqicXIdqSS6ivhb5q~oe6sEkdp6gGWvkUgE7y6bTPXrtUzYS1dUH94aMg4RyK2aWW7g6xyXRDFTJ7v1tTnkWWYAVR2mOYHSe08cOfSjNzfNMuzoOGHUyKXr-1qAYf6lLp48TEpT6KFmpwGZRKnLuSR9ASm92euBksf-8Psvu2lU6~o0opBumgf1ljHG0Ay4yqf~u71lpescJQ6V9A__&Key-Pair-Id=APKAIFLZBVQZ24NQH3KA",
+    "embedUrl": "https://www.imdb.com/video/embed/imdb-video.media-imdb.com/vi3877612057/1434659607842-pgv4ql-1616202333253.mp4?Expires=1780996893&Signature=UbjlV1T~aKemoX6V3EQiIe91L4FlFoei8fKs79KZghyP1VZ5NTsGALn8QmqWH4nPHtxpDDntLOkp8v2X3BgJjlsnUyBIzpVwzZqqQv25gFSxcDAGKhFuLIAjy4BpJjgiEwAPJvqicXIdqSS6ivhb5q~oe6sEkdp6gGWvkUgE7y6bTPXrtUzYS1dUH94aMg4RyK2aWW7g6xyXRDFTJ7v1tTnkWWYAVR2mOYHSe08cOfSjNzfNMuzoOGHUyKXr-1qAYf6lLp48TEpT6KFmpwGZRKnLuSR9ASm92euBksf-8Psvu2lU6~o0opBumgf1ljHG0Ay4yqf~u71lpescJQ6V9A__&Key-Pair-Id=APKAIFLZBVQZ24NQH3KA",
+    "thumbnail": "https://m.media-amazon.com/images/M/MV5BNjQ2NDA3MDcxMF5BMl5BanBnXkFtZTgwMjE5NTU0NzE@._V1_.jpg",
+    "duration": 131,
+    "uploadDate": "2014-03-05T14:13:19Z",
+    "contentType": "Trailer"
+  },
+  "review_count": 11866,
+  "enhanced_actors": [
+    {
+      "name": "Tim Robbins",
+      "url": "https://www.imdb.com/name/nm0000209/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BMTI1OTYxNzAxOF5BMl5BanBnXkFtZTYwNTE5ODI4._V1_.jpg",
+      "characters": [
+        "Andy Dufresne"
+      ]
+    },
+    {
+      "name": "Morgan Freeman",
+      "url": "https://www.imdb.com/name/nm0000151/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BMTc0MDMyMzI2OF5BMl5BanBnXkFtZTcwMzM2OTk1MQ@@._V1_.jpg",
+      "characters": [
+        "Ellis Boyd 'Red' Redding"
+      ]
+    },
+    {
+      "name": "Bob Gunton",
+      "url": "https://www.imdb.com/name/nm0348409/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BOWQ1ZTI1ZDgtMjhmZC00OWExLTliNWQtNzgxNTExZWIwMDJkXkEyXkFqcGc@._V1_.jpg",
+      "characters": [
+        "Warden Norton"
+      ]
+    },
+    {
+      "name": "William Sadler",
+      "url": "https://www.imdb.com/name/nm0006669/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BMTA1NjU3NDg1MTheQTJeQWpwZ15BbWU2MDI4OTcxMw@@._V1_.jpg",
+      "characters": [
+        "Heywood"
+      ]
+    }
+  ],
+  "enhanced_directors": [
+    {
+      "name": "Frank Darabont",
+      "url": "https://www.imdb.com/name/nm0001104/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BNjk0MTkxNzQwOF5BMl5BanBnXkFtZTcwODM5OTMwNA@@._V1_.jpg"
+    }
+  ],
+  "enhanced_creators": [
+    {
+      "name": "Stephen King",
+      "url": "https://www.imdb.com/name/nm0000175/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BMjA2ODIxNDM4Nl5BMl5BanBnXkFtZTYwMjkzMzU1._V1_.jpg",
+      "type": "Writers"
+    },
+    {
+      "name": "Frank Darabont",
+      "url": "https://www.imdb.com/name/nm0001104/",
+      "profile_image": "https://m.media-amazon.com/images/M/MV5BNjk0MTkxNzQwOF5BMl5BanBnXkFtZTcwODM5OTMwNA@@._V1_.jpg",
+      "type": "Writers"
+    }
+  ],
+  "imdb_url": "https://www.imdb.com/title/tt0111161/",
+  "connections": [
+    {
+      "id": "tt1936736",
+      "title": "Why Gump? Why Now?",
+      "year": 1994,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt6142216",
+      "title": "The Shawshank Redemption/Timecop/Terminal Velocity/The New Age/Blue Sky",
+      "year": 1994,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt5003656",
+      "title": "The Best Films of 1994",
+      "year": 1994,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0482447",
+      "title": "The 52nd Annual Golden Globe Awards",
+      "year": 1995,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0289291",
+      "title": "MST3K Little Gold Statue Preview Special",
+      "year": 1995,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0268875",
+      "title": "The 67th Annual Academy Awards",
+      "year": 1995,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0297693",
+      "title": "The 69th Annual Academy Awards",
+      "year": 1997,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0128429",
+      "title": "The Race to Save 100 Years",
+      "year": 1997,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt1076643",
+      "title": "Episode dated 30 January 1998",
+      "year": 1998,
+      "relationship": "Featured in"
+    },
+    {
+      "id": "tt0754886",
+      "title": "Episode #11.3",
+      "year": 1998,
+      "relationship": "Featured in"
+    }
+  ],
+  "similar_titles": [
+    {
+      "id": "tt0068646",
+      "title": "The Godfather",
+      "year": 1972,
+      "rating": 9.2,
+      "poster_url": "https://m.media-amazon.com/images/M/MV5BNGEwYjgwOGQtYjg5ZS00Njc1LTk2ZGEtM2QwZWQ2NjdhZTE5XkEyXkFqcGc@._V1_.jpg"
+    },
+    {
+      "id": "tt0468569",
+      "title": "The Dark Knight",
+      "year": 2008,
+      "rating": 9.1,
+      "poster_url": "https://m.media-amazon.com/images/M/MV5BMTMxNTMwODM0NF5BMl5BanBnXkFtZTcwODAyMTk2Mw@@._V1_.jpg"
+    },
+    {
+      "id": "tt0109830",
+      "title": "Forrest Gump",
+      "year": 1994,
+      "rating": 8.8,
+      "poster_url": "https://m.media-amazon.com/images/M/MV5BNDYwNzVjMTItZmU5YS00YjQ5LTljYjgtMjY2NDVmYWMyNWFmXkEyXkFqcGc@._V1_.jpg"
+    },
+    {
+      "id": "tt0137523",
+      "title": "Fight Club",
+      "year": 1999,
+      "rating": 8.8,
+      "poster_url": "https://m.media-amazon.com/images/M/MV5BOTgyOGQ1NDItNGU3Ny00MjU3LTg2YWEtNmEyYjBiMjI1Y2M5XkEyXkFqcGc@._V1_.jpg"
+    },
+    {
+      "id": "tt1375666",
+      "title": "Inception",
+      "year": 2010,
+      "rating": 8.8,
+      "poster_url": "https://m.media-amazon.com/images/M/MV5BMjAxMzY3NjcxNF5BMl5BanBnXkFtZTcwNTI5OTM0Mw@@._V1_.jpg"
+    }
+  ],
+  "is_adult": false,
+  "is_ratable": true,
+  "total_nominations": 64,
+  "image_gallery": [
+    {
+      "url": "https://m.media-amazon.com/images/M/MV5BMTM0NjUxMDk5MF5BMl5BanBnXkFtZTcwNDMxNDY3Mw@@._V1_.jpg",
+      "caption": "Morgan Freeman, Tim Robbins, William Sadler, Larry Brandenburg, Neil Giuntoli, Brian Libby, David Proval, and Joseph Ragno in The Shawshank Redemption (1994)",
+      "width": 1800,
+      "height": 1200
+    },
+    {
+      "url": "https://m.media-amazon.com/images/M/MV5BMTk3NDE2Nzg3Nl5BMl5BanBnXkFtZTcwNTMxNDY3Mw@@._V1_.jpg",
+      "caption": "Clancy Brown, Dion Anderson, and Brian Delate in The Shawshank Redemption (1994)",
+      "width": 2048,
+      "height": 1362
+    },
+    {
+      "url": "https://m.media-amazon.com/images/M/MV5BMTg0MDgwNjc5N15BMl5BanBnXkFtZTcwNjMxNDY3Mw@@._V1_.jpg",
+      "caption": "Tim Robbins in The Shawshank Redemption (1994)",
+      "width": 1355,
+      "height": 2048
+    },
+    {
+      "url": "https://m.media-amazon.com/images/M/MV5BMTkzMTY0MjE5MV5BMl5BanBnXkFtZTcwODMxNDY3Mw@@._V1_.jpg",
+      "caption": "Morgan Freeman and Tim Robbins in The Shawshank Redemption (1994)",
+      "width": 1798,
+      "height": 1178
+    },
+    {
+      "url": "https://m.media-amazon.com/images/M/MV5BNTYxOTYyMzE3NV5BMl5BanBnXkFtZTcwOTMxNDY3Mw@@._V1_.jpg",
+      "caption": "Morgan Freeman and Tim Robbins in The Shawshank Redemption (1994)",
+      "width": 1800,
+      "height": 1216
+    }
+  ],
+  "trivia_items": [
+    "Andy and Red's opening chat in the prison yard, in which Red is throwing a baseball, took nine hours to shoot because director Frank Darabont insisted on many takes of the scene before he was satisfied. Morgan Freeman threw the baseball for the entire nine hours without a word of complaint. He showed up for work the next day with his left arm in a sling.",
+    "Morgan Freeman said that this was \"an absolutely delightful script\", certainly among the top best scripts he had ever read. He contacted his agent and said, \"It doesn't matter which part it is - I want to be in it.\" He was then surprised to learn that they wanted him to play Red: \"And I thought, 'Wow, I control the movie!' I was flabbergasted by that.\" The finished film is his favorite movie of his own.",
+    "Clint Eastwood, Harrison Ford, Paul Newman, Gene Hackman, Robert Redford and Robert Duvall were all considered for the part of Red, who was a middle-aged white Irishman with graying red hair in the novel. However, none of these actors would commit for various reasons. Redford may have been busy directing Quiz Show (1994), which would later compete with Shawshank at the box office and at the Oscar ceremony, both being nominated for Best Picture and Adapted Screenplay (neither won). It was Castle Rock producer Liz Glotzer who ignored the racial specification and suggested Morgan Freeman to Frank Darabont for the role, because of his authoritative presence, demeanor, and deep voice. Red's reply, \"Maybe it's because I'm Irish,\" to Andy's inquiry about his nickname was kept in the film as a joke."
+  ],
+  "goof_items": [
+    "Circa 1963, Heywood is shown listening to the record \"24 of Hank Williams' Greatest Hits\", released in 1970.",
+    "On the newspaper front page announcing the \"corruption\" story, the word \"indictment\" is misspelled as \"indictement\".",
+    "It's been claimed that when the warden throws the rock through Raquel Welch on the morning after Andy's escape, the poster appears to be stuck to the wall at all corners, raising the question of how Andy could have re-stuck the poster from inside the tunnel. However, as shown in a later (flashback) shot, the poster is attached at the top two corners allowing it to be lifted like a curtain while Andy works behind it. With the poster mounted in this fashion, the only requirement for the poster returning to the proper position - after Andy makes his escape - is simple gravity."
+  ]
+}
