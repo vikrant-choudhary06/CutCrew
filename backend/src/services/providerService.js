@@ -50,7 +50,7 @@ async function fetchAndAttachProviderLinks(movieData) {
     const PROVIDERS = getAvailableProvidersLocal();
     console.log(`[ProviderService] Will attempt ${PROVIDERS.length} providers: ${PROVIDERS.join(', ')}`);
 
-    const distDir = path.join(__dirname, '../../../cut-crew-providers/dist');
+    const distDir = path.join(__dirname, '../../../provider/dist');
     const providerContext = getProviderContext();
 
     // Multi-Provider Fallback Logic
