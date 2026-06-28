@@ -11,7 +11,7 @@ function getProviderContext() {
   let getBaseUrl = () => "";
   try {
     // Attempt to load getBaseUrl.js from the providers dist directory
-    const getBaseUrlPath = path.join(__dirname, '../../../cut-crew-providers/dist/getBaseUrl.js');
+    const getBaseUrlPath = path.join(__dirname, '../../../provider/dist/getBaseUrl.js');
     if (fs.existsSync(getBaseUrlPath)) {
       getBaseUrl = require(getBaseUrlPath).getBaseUrl;
     } else {
@@ -36,7 +36,7 @@ function getProviderContext() {
  * Returns the list of available providers from the dist directory.
  */
 function getAvailableProvidersLocal() {
-  const distDir = path.join(__dirname, '../../../cut-crew-providers/dist');
+  const distDir = path.join(__dirname, '../../../provider/dist');
   if (!fs.existsSync(distDir)) {
     console.error("[ProviderHelper] dist directory not found at", distDir);
     return [];

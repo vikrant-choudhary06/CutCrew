@@ -1,11 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+
+// Load env vars before loading routes which might require them
+dotenv.config();
+
 const routes = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
-
-// Load env vars
-dotenv.config();
 
 const app = express();
 

@@ -58,7 +58,7 @@ router.get('/:imdb_id', async (req, res, next) => {
     const fs = require('fs');
     const { getProviderContext } = require('../utils/providerHelper');
     
-    const distDir = path.join(__dirname, '../../../cut-crew-providers/dist');
+    const distDir = path.join(__dirname, '../../../provider/dist');
     const streamModulePath = path.join(distDir, provider, 'stream.js');
     
     if (!fs.existsSync(streamModulePath)) {
