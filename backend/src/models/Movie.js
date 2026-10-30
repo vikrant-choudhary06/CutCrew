@@ -63,13 +63,19 @@ async function write(filter, update, options = {}) {
   if (!update.$set || Object.keys(update).some(key => key !== '$set')) throw new Error('Unsupported movie update');
   const patch = clean(update.$set);
   if (patch.title !== undefined && (typeof patch.title !== 'string' || !patch.title.trim())) throw new Error('Movie title is required');
+  if (patch.admin_overrides !== undefined && (typeof patch.admin_overrides !== 'object' || Array.isArray(patch.admin_overrides) || patch.admin_overrides === null)) throw new Error('Invalid admin overrides');
   if (Object.keys(filter).length === 1 && !Object.keys(patch).some(key => key.includes('.'))) {
     // Merge into the current locked version, not a stale application snapshot.
+    // Fields an admin edited by hand (data.admin_overrides) are applied last, so
+    // a metadata refresh (nightly cron, details fetch) can never undo them.
+    const merged = (current, incoming) => `(${current} || ${incoming}) ||
+      jsonb_build_object('admin_overrides', COALESCE(${current}->'admin_overrides', '{}'::jsonb) || COALESCE(${incoming}->'admin_overrides', '{}'::jsonb)) ||
+      COALESCE(${current}->'admin_overrides', '{}'::jsonb) || COALESCE(${incoming}->'admin_overrides', '{}'::jsonb)`;
     const result = options.upsert
       ? await db.query(`INSERT INTO movies(imdb_id, data) VALUES ($1, $2::jsonb)
-          ON CONFLICT(imdb_id) DO UPDATE SET data = movies.data || $3::jsonb, updated_at = now() RETURNING *`,
-        [id, JSON.stringify({ ...defaults(), ...patch }), JSON.stringify(patch)])
-      : await db.query('UPDATE movies SET data = data || $2::jsonb, updated_at = now() WHERE imdb_id = $1 RETURNING *', [id, JSON.stringify(patch)]);
+          ON CONFLICT(imdb_id) DO UPDATE SET data = ${merged('movies.data', '$3::jsonb')}, updated_at = now() RETURNING *`,
+        [id, JSON.stringify({ ...defaults(), ...patch, ...(patch.admin_overrides || {}) }), JSON.stringify(patch)])
+      : await db.query(`UPDATE movies SET data = ${merged('data', '$2::jsonb')}, updated_at = now() WHERE imdb_id = $1 RETURNING *`, [id, JSON.stringify(patch)]);
     return { record: document(result.rows[0]), matchedCount: result.rows.length };
   }
   return db.transaction(async client => {
@@ -87,7 +93,7 @@ async function write(filter, update, options = {}) {
       }
     } else if (filter['seasons.0']?.$exists === false) {
       if (data.seasons?.length) return { record: null, matchedCount: 0 };
-      Object.assign(data, patch);
+      Object.assign(data, patch, data.admin_overrides || {});
     } else throw new Error('Unsupported conditional movie update');
     const result = await client.query('UPDATE movies SET data = $2::jsonb, updated_at = now() WHERE imdb_id = $1 RETURNING *', [id, JSON.stringify(data)]);
     return { record: document(result.rows[0]), matchedCount: 1 };
