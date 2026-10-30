@@ -33,7 +33,7 @@ function videoStorageConfig(env = process.env) {
   const downloadSessions = integer(env, 'TELEGRAM_DOWNLOAD_SESSIONS', 4, 1, 16, errors);
   const downloadInflight = integer(env, 'TELEGRAM_DOWNLOAD_INFLIGHT', 2, 1, 8, errors);
   const fetchConcurrency = integer(env, 'STREAM_FETCH_CONCURRENCY', 8, 1, 64, errors);
-  const prefetchBlocks = integer(env, 'STREAM_PREFETCH_BLOCKS', 3, 0, 32, errors);
+  const prefetchBytes = integer(env, 'STREAM_PREFETCH_BYTES', 24 * 1024 ** 2, 0, 512 * 1024 ** 2, errors);
   const cacheMaxBytes = integer(env, 'STREAM_CACHE_MAX_BYTES', 4 * 1024 ** 3, 64 * 1024 ** 2, 1024 ** 4, errors);
   const cacheDir = env.STREAM_CACHE_DIR ? require('node:path').resolve(env.STREAM_CACHE_DIR) : require('../services/telegramStorage').localWorkDir('stream-cache');
   const ticketTtlMs = integer(env, 'STREAM_TICKET_TTL_MS', 6 * 3600 * 1000, 60000, 24 * 3600 * 1000, errors);
@@ -53,7 +53,7 @@ function videoStorageConfig(env = process.env) {
     uploadConcurrency,
     importMaxAttempts,
     jobLeaseMs,
-    downloadSessions, downloadInflight, fetchConcurrency, prefetchBlocks, cacheMaxBytes, cacheDir, ticketTtlMs,
+    downloadSessions, downloadInflight, fetchConcurrency, prefetchBytes, cacheMaxBytes, cacheDir, ticketTtlMs,
     channelId: telegram.channelId,
     telegram: enabled ? telegram : undefined,
   };
@@ -73,7 +73,7 @@ function describe(config = videoStorageConfig()) {
     downloadSessions: config.downloadSessions,
     downloadInflight: config.downloadInflight,
     fetchConcurrency: config.fetchConcurrency,
-    prefetchBlocks: config.prefetchBlocks,
+    prefetchBytes: config.prefetchBytes,
     cacheMaxBytes: config.cacheMaxBytes,
     storageChatConfigured: Boolean(config.channelId),
   };

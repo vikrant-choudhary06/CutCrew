@@ -26,6 +26,11 @@ function classify(error) {
   if (['INSUFFICIENT_DISK_SPACE', 'SOURCE_CHANGED_DURING_SPLIT', 'SPLIT_CANCELLED', 'HASH_CANCELLED'].includes(error?.code)) return { code: error.code, retryable: true };
   if (error instanceof repo.VideoStorageError) return { code: error.code, retryable: false };
   if (error?.code === 'ENOENT') return { code: 'LOCAL_FILE_MISSING', retryable: true };
+  // PostgreSQL / pooler problems (dropped connection, query timeout) are not Telegram failures.
+  if (error?.severity || /^(08|57|53)/.test(String(error?.code || '')) ||
+      /Connection terminated|Query read timeout|connection error|not queryable|timeout exceeded when trying to connect/i.test(error?.message || '')) {
+    return { code: 'DATABASE_UNAVAILABLE', retryable: true };
+  }
   const safe = safeFailure(error || {});
   return { code: safe.code, retryable: true, retryAfterMs: (safe.retryAfterSeconds || 0) * 1000 };
 }
@@ -297,9 +302,20 @@ async function cleanup(workDir) {
 // Processes due jobs until none remain (or `maxJobs` is reached).
 async function runWorker(ctx, { maxJobs = Infinity } = {}) {
   const results = [];
+  const claim = async () => {
+    // A flaky database connection shouldn't end the run: retry the claim.
+    for (let attempt = 0; ; attempt++) {
+      try { return await repo.claimJob(ctx.workerId, { leaseMs: ctx.leaseMs ?? 120000 }); }
+      catch (error) {
+        if (attempt >= (ctx.claimRetries ?? 4) || classify(error).code !== 'DATABASE_UNAVAILABLE') throw error;
+        ctx.log?.({ event: 'database-retry', attempt: attempt + 1 });
+        await new Promise(resolve => setTimeout(resolve, (ctx.claimRetryBaseMs ?? 2000) * 2 ** attempt));
+      }
+    }
+  };
   while (results.length < maxJobs) {
     if (ctx.signal?.aborted) break;
-    const job = await repo.claimJob(ctx.workerId, { leaseMs: ctx.leaseMs ?? 120000 });
+    const job = await claim();
     if (!job) break;
     results.push({ jobId: job.id, assetId: job.assetId, ...(await runJob(job, ctx)) });
   }

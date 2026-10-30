@@ -167,7 +167,7 @@ test('the cache never exceeds its quota and evicts least-recently-used blocks', 
 test('cancelling a stream stops it and abandons queued prefetch work', async () => {
   let reads = 0;
   const slow = { ...adapter, readRange: async (...args) => { reads++; await new Promise(r => setTimeout(r, 40)); return adapter.readRange(...args); } };
-  const streamer = new StoredStreamer({ adapter: slow, cache: newCache('cancel'), fetchConcurrency: 1, prefetchBlocks: 3 });
+  const streamer = new StoredStreamer({ adapter: slow, cache: newCache('cancel'), fetchConcurrency: 1, prefetchBytes: 4.5 * MiB });
   const controller = new AbortController();
   const out = sink();
   const running = streamer.streamRange(asset, 0, data.length - 1, out, controller.signal);

@@ -12,6 +12,8 @@ const os = require('node:os');
 const { createHash, randomUUID } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 require('dotenv').config({ path: path.join(ROOT, '.env'), quiet: true });
+// The CLI's queries are small: give up on a stalled database reply sooner and retry.
+process.env.DB_QUERY_TIMEOUT_MS ||= '20000';
 const db = require('../src/config/db');
 const repo = require('../src/services/videoStorageRepository');
 const { videoStorageConfig } = require('../src/config/videoStorage');

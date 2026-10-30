@@ -123,7 +123,8 @@ test('exact binary split reproduces the file byte for byte with part and block c
   split.parts.forEach(p => assert.equal(p.sha256, sha(bytes.subarray(p.offset, p.offset + p.size))));
   assert.equal(split.parts[0].integrityManifest.blocks.length, 1);
   assert.equal(blockSizeFor(1500000000) % (512 * 1024), 0, 'blocks align with Telegram reads');
-  assert.ok(1500000000 / blockSizeFor(1500000000) <= 256);
+  assert.equal(blockSizeFor(1500000000), 1024 * 1024, '1 MiB check-blocks for normal parts');
+  assert.ok(Math.ceil(2097152000 / blockSizeFor(2097152000)) <= 2048);
   assert.equal((await fs.readdir(path.join(tmp, 'split'))).some(f => f.endsWith('.tmp')), false);
 });
 
@@ -242,4 +243,17 @@ test('a series episode import is stored and found by season and episode', skip, 
   const found = await repo.findReadyAsset({ imdbId: 'tt8100001', season: 2, episode: 5 });
   assert.equal(found.id, asset.id);
   assert.match(adapter.messages.get(found.parts[0].telegramMessageId).caption, /Type: Series\nIMDb ID: tt8100001\nTitle: Test Movie\nSeries release year: 2026\nSeason: 02\nEpisode: 05/);
+});
+
+test('a flaky database during job claiming is retried instead of ending the run', skip, async () => {
+  const { asset } = await newImport(fx.faststart);
+  const real = repo.claimJob; let failures = 2;
+  repo.claimJob = async (...args) => { if (failures-- > 0) throw new Error('Query read timeout'); return real(...args); };
+  try {
+    const events = [];
+    const [result] = await runWorker(ctx({ claimRetryBaseMs: 1, log: e => events.push(e) }), { maxJobs: 1 });
+    assert.equal(result.status, 'succeeded');
+    assert.equal(events.filter(e => e.event === 'database-retry').length, 2);
+    assert.equal((await repo.getAsset(asset.id)).state, 'ready');
+  } finally { repo.claimJob = real; }
 });

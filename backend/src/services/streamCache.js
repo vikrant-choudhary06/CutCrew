@@ -77,14 +77,22 @@ class BlockCache {
   // can't be met without evicting blocks that are in use.
   async put(key, bytes) {
     await this.init();
-    if (this.entries.has(key)) { this.entries.get(key).used = Date.now(); return true; }
-    if (bytes.length > this.maxBytes || !(await this.evict(bytes.length))) { this.stats.skipped++; return false; }
+    // Making room and reserving it happen one put at a time; otherwise
+    // parallel puts could each see free space and overshoot the quota.
+    const step = (this.reserving || Promise.resolve()).then(async () => {
+      if (this.entries.has(key)) { this.entries.get(key).used = Date.now(); return 'exists'; }
+      if (bytes.length > this.maxBytes || !(await this.evict(bytes.length))) { this.stats.skipped++; return 'full'; }
+      this.entries.set(key, { size: bytes.length, used: Date.now(), writing: true });
+      this.total += bytes.length;
+      return 'reserved';
+    });
+    this.reserving = step.catch(() => {}); // one failure must not block later puts
+    const reserved = await step;
+    if (reserved === 'exists') return true;
+    if (reserved === 'full') return false;
     const file = this.fileFor(key);
     await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
     const temp = `${file}.${randomUUID()}.tmp`;
-    // Reserve the space before the write so parallel puts can't overshoot.
-    this.entries.set(key, { size: bytes.length, used: Date.now(), writing: true });
-    this.total += bytes.length;
     try {
       await fs.writeFile(temp, bytes, { mode: 0o600, flag: 'wx' });
       await fs.rename(temp, file);

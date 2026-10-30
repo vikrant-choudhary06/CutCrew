@@ -7,12 +7,14 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { planParts } = require('./videoStorageRepository');
 
-const MAX_BLOCKS_PER_PART = 256;
-const MIN_BLOCK = 8 * 1024 * 1024;
-const ALIGN = 512 * 1024; // matches Telegram's download alignment
+// 1 MiB blocks match Telegram's 1 MiB download chunks, so streaming can check
+// and send the first bytes after a single request (~1 s instead of 3-5 s).
+const MAX_BLOCKS_PER_PART = 2048;
+const MIN_BLOCK = 1024 * 1024;
+const ALIGN = 1024 * 1024;
 
-// Block size for partial-read integrity checks: >= 8 MiB, 512 KiB aligned,
-// and at most 256 block hashes per part.
+// Block size for partial-read integrity checks: 1 MiB (aligned with Telegram
+// reads), growing only if a part would need more than 2048 block hashes.
 function blockSizeFor(partSize) {
   const wanted = Math.max(MIN_BLOCK, Math.ceil(partSize / MAX_BLOCKS_PER_PART));
   return Math.ceil(wanted / ALIGN) * ALIGN;

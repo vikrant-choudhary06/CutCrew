@@ -25,7 +25,7 @@ function defaultDeps() {
         adapter: createTelegramAdapter(config.telegram, { downloadSessions: config.downloadSessions, downloadInflight: config.downloadInflight }),
         cache: new BlockCache({ dir: config.cacheDir, maxBytes: config.cacheMaxBytes }),
         fetchConcurrency: config.fetchConcurrency,
-        prefetchBlocks: config.prefetchBlocks,
+        prefetchBytes: config.prefetchBytes,
         // Only a confirmed missing Telegram message takes the asset out of playback.
         onPartMissing: part => repo.markPartMissing(part.assetId, part.partNumber).then(() => assets.delete(part.assetId)),
       });

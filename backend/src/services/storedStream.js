@@ -55,12 +55,12 @@ function planRange(asset, start, end) {
 }
 
 class StoredStreamer {
-  constructor({ adapter, cache, fetchConcurrency = 8, prefetchBlocks = 3, retries = 3, retryBaseMs = 300, maxWaitMs = 30000, onPartMissing } = {}) {
+  constructor({ adapter, cache, fetchConcurrency = 8, prefetchBytes = 24 * 1024 * 1024, retries = 3, retryBaseMs = 300, maxWaitMs = 30000, onPartMissing } = {}) {
     if (!(cache instanceof BlockCache)) throw new Error('cache must be a BlockCache');
     this.adapter = adapter;
     this.cache = cache;
     this.limiter = new PriorityLimiter(fetchConcurrency);
-    this.prefetchBlocks = prefetchBlocks;
+    this.prefetchBytes = prefetchBytes;
     this.retries = retries;
     this.retryBaseMs = retryBaseMs;
     this.maxWaitMs = maxWaitMs;
@@ -154,7 +154,8 @@ class StoredStreamer {
   async streamRange(asset, start, end, out, signal) {
     const plan = planRange(asset, start, end);
     const prefetch = index => {
-      for (let i = index + 1; i <= Math.min(plan.length - 1, index + this.prefetchBlocks); i++) {
+      // Read ahead by bytes, so small (1 MiB) and large (8 MiB) blocks behave alike.
+      for (let i = index + 1, ahead = 0; i < plan.length && ahead < this.prefetchBytes; ahead += plan[i].blockLength, i++) {
         this.stats.prefetchStarted++;
         this.getBlock(asset, plan[i], { high: false, signal }).catch(() => { this.stats.prefetchCancelled++; });
       }
