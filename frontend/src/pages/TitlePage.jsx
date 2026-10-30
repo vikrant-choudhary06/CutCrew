@@ -105,7 +105,7 @@ function TitlePage({ id }) {
 
   return <main id="main" className="title-page">
     <section className="title-hero">
-      <div className="title-media" aria-hidden="true"><img src={backdropUrl(data)} alt="" fetchPriority="high" onError={e => { e.currentTarget.style.visibility = 'hidden' }} /></div>
+      <div className="title-media" aria-hidden="true"><img src={backdropUrl(data)} alt="" fetchPriority="high" decoding="async" onLoad={e => e.currentTarget.classList.add('is-loaded')} onError={e => { e.currentTarget.style.visibility = 'hidden' }} /></div>
       <div className="title-body">
         {logoOk ? <h1 className="title-logo"><img src={logoUrl(data)} alt={data.title} onError={() => setLogoOk(false)} /></h1> : <h1 className="hero-title">{data.title}</h1>}
         <p className="facts">{facts.map(f => <span key={f}>{f}</span>)}{ratingLabel(data.rating) && <span className="rating"><Icon name="star" size={13} />{ratingLabel(data.rating)}</span>}{instant.has(data.imdb_id) && <span className="instant-badge"><Icon name="bolt" size={12} />Instant</span>}</p>
@@ -123,7 +123,7 @@ function TitlePage({ id }) {
       <div className="tabs" role="tablist" aria-label="Title sections">
         {tabs.map(([key, label]) => <button key={key} role="tab" aria-selected={active === key} onClick={() => setTab(key)}>{label}</button>)}
       </div>
-      <div role="tabpanel" className="tab-panel">
+      <div role="tabpanel" className="tab-panel" key={active}>
         {active === 'episodes' && (loading && !firstEpisode ? <div className="episode-list">{Array.from({ length: 4 }, (_, i) => <span key={i} className="skeleton skeleton--episode" />)}</div> : <Episodes data={data} progress={progress} />)}
         {active === 'more' && <MoreLikeThis item={data} />}
         {active === 'details' && <dl className="details">
