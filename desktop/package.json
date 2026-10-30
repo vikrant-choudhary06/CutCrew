@@ -1,0 +1,14 @@
+{
+  "name": "cutcrew-desktop",
+  "private": true,
+  "version": "1.0.0",
+  "description": "CutCrew for Windows: the CutCrew website in its own app window",
+  "scripts": {
+    "icons": "tauri icon app-icon.svg",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.9.6"
+  }
+}
