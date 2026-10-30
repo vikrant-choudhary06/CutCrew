@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+router.use(require('../middlewares/adminAuth'));
 
 router.get('/', (req, res, next) => {
   try {

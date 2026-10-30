@@ -121,7 +121,6 @@ export async function gdflixExtractor(
             body: resumeBotBody,
             headers: {
               Referer: resumeDrive,
-              Cookie: "PHPSESSID=7e9658ce7c805dab5bbcea9046f7f308",
             },
           },
         );

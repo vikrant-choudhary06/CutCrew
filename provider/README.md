@@ -79,7 +79,7 @@ providers/
 
 - `axios`: For HTTP requests
 - `cheerio`: For HTML parsing
-- `getBaseUrl`: Helper to get the provider's base URL (base url are generall stored here https://github.com/himanshu8443/providers/blob/main/modflix.json)
+- `getBaseUrl`: Helper to get the provider's base URL (base url are generall stored here https://github.com/Zenda-Cross/vega-providers/blob/main/urls.json)
 - `commonHeaders`: Standard HTTP headers
 
 This ensures all providers use the same tools and patterns, making code easier to maintain and extend.

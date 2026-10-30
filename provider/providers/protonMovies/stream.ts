@@ -151,8 +151,6 @@ export const getStream = async function ({
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "same-origin",
-            cookie:
-              "ext_name=ojplmecpdpgccookcobabopnaifgidhf; tgInvite222=true; cf_clearance=3ynJv2B6lHMj3FCOqtfQaL7lTN4KC3xmPRMgcNtddAc-1748787867-1.2.1.1-SEIhLbWR3ehfib5Y3P5pjzj1Qu9wipc52Icv4AmNkztXn2pTXhjKgxXnvTuA2bNscgHuc1juXujAHteqY_vaMmy2C3djMWnJGzjje_XvXZXKht8rwHZt6sviq7KAYvrYZPTrATqENuopzmqmK6dDFS.CAnWHt0VDn8q06iLm5rYj1AXUo3qkV5p1Idx_25elWHYGG8yengBrQV1MYVM9LMdQqv44PXu69FZvNkgv.d6blCKyneJnoLkw4LHAccu.QRPbFwWqqTDyO9YTLRQW9w29bKghD3_JVxkz.qxpg5FbocJ3i6tJJy74SvROpYdpVUOn0fW1YgQ7RxYwhNoHpdTKy8pvmQJGRuSVW1GjO_k",
             Referer: "https://m3.protonmovies.top/download/",
             "Referrer-Policy": "strict-origin-when-cross-origin",
           },

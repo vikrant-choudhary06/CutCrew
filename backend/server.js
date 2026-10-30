@@ -30,12 +30,14 @@ console.error = (...args) => {
 
 const PORT = process.env.PORT || 5000;
 
-// Connect to Database
-connectDB();
-
-// Initialize Cron Jobs
-startCronJobs();
-
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+async function start() {
+  await connectDB();
+  startCronJobs();
+  const server = app.listen(PORT, () => console.log(`Server is running on port ${PORT} (PostgreSQL)`));
+  const shutdown = () => {
+    server.close(async () => { await connectDB.close(); logStream.end(); });
+    server.closeIdleConnections();
+  };
+  process.once('SIGINT', shutdown); process.once('SIGTERM', shutdown);
+}
+start().catch(error => { console.error(error.message); process.exitCode = 1; logStream.end(); });

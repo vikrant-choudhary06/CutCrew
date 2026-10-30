@@ -33,7 +33,6 @@ export const getStream = async ({
         headers: {
           Referer: baseUrl,
           origin: baseUrl,
-          Cookie: "hd=on",
         },
       });
     });

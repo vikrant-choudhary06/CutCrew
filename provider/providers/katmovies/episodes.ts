@@ -70,8 +70,6 @@ export const getEpisodes = async function ({
       });
     }
     const res = await getWithWAF(url, axios, openWebView, commonHeaders, {
-      Cookie:
-        "_ga_GNR438JY8N=GS1.1.1722240350.5.0.1722240350.0.0.0; _ga=GA1.1.372196696.1722150754; unlocked=true",
     });
     const episodeData = res.data;
     const $ = cheerio.load(episodeData);

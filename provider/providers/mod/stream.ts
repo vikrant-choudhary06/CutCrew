@@ -12,7 +12,6 @@ const headers = {
   "sec-ch-ua-platform": '"Windows"',
   "Sec-Fetch-Dest": "document",
   "Sec-Fetch-Mode": "navigate",
-  Cookie: "popads_user_id=6ba8fe60a481387a3249f05aa058822d",
   "Sec-Fetch-Site": "none",
   "Sec-Fetch-User": "?1",
   "Upgrade-Insecure-Requests": "1",
@@ -127,7 +126,6 @@ export const getStream = async function ({
           body: resumeBotBody,
           headers: {
             Referer: resumeBot,
-            Cookie: "PHPSESSID=7e9658ce7c805dab5bbcea9046f7f308",
           },
         }
       );

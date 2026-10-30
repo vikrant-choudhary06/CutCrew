@@ -1,0 +1,22 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {Readable}=require('node:stream');
+const health=require('../src/services/sourceProbe');
+const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom'),Buffer.alloc(100)]);
+const response=(body,type='video/mp4',status=206)=>({status,headers:{'content-type':type,'content-range':'bytes 0-115/116'},data:Readable.from([body])});
+test('byte checks reject HTML, JSON/quota errors and empty payloads',async()=>{for(const [body,type,status]of [[Buffer.from('<html>challenge</html>'),'text/html',200],[Buffer.from('{"error":"quota"}'),'application/json',403],[Buffer.alloc(0),'video/mp4',200]]){const value=await health.probe({link:'https://video.example/a'},{open:async()=>response(body,type,status)});assert.equal(value.ok,false)}});
+test('real media signature is accepted and bounded ranges are requested',async()=>{let range;const result=await health.probe({link:'https://video.example/a'},{open:async(_url,_headers,value)=>{range=value;return response(mp4)}});assert.equal(result.ok,true);assert.equal(result.seekable,true);assert.equal(range,'bytes=0-4095')});
+test('HLS inspection follows a segment and rejects a playlist whose media is unavailable',async()=>{const playlist=Buffer.from('#EXTM3U\n#EXT-X-TARGETDURATION:8\nsegment.ts\n');const calls=[];const result=await health.probe({link:'https://video.example/master.m3u8'},{open:async url=>{calls.push(url);return url.endsWith('.m3u8')?response(playlist,'application/vnd.apple.mpegurl',200):response(Buffer.from('quota'),'application/json',403)}});assert.equal(result.ok,false);assert.equal(calls[1],'https://video.example/segment.ts')});
+test('HLS validates real segment bytes without aborting the nested request',async()=>{const ts=Buffer.alloc(376);ts[0]=ts[188]=0x47;const result=await health.probe({link:'https://video.example/master.m3u8'},{open:async(url,_headers,_range,signal)=>{assert.equal(signal.aborted,false);return url.endsWith('.m3u8')?response(Buffer.from('#EXTM3U\nsegment.ts\n'),'application/vnd.apple.mpegurl',200):response(ts,'video/mp2t')}});assert.equal(result.ok,true);assert.equal(result.reason,'mpeg-ts')});
+test('source selection skips dead mirrors and prefers a seekable verified mirror',async()=>{const streams=[{link:'dead'},{link:'no-range'},{link:'range'}];const result=await filter(streams,{check:async stream=>({ok:stream.link!=='dead',seekable:stream.link==='range'})});assert.deepEqual(result.map(x=>x.link),['range','no-range'])});
+// Exercise actual resolution with only network responses replaced by fixtures.
+const helper=require('../src/utils/providerHelper');
+helper.getAvailableProvidersLocal=()=>['broken','working'];
+helper.loadProvider=(provider,module)=>module==='posts'?{getSearchPosts:async()=>[{link:'metadata'}]}:module==='meta'?{getMeta:async()=>({imdbId:'tt1375666',linkList:[{directLinks:[{link:provider}]}]})}:{getStream:async()=>[{link:'https://video.example/'+provider+'.mp4'}]};
+const filter=health.filterPlayable;
+health.filterPlayable=(streams,options)=>filter(streams,{...options,check:async stream=>health.probe(stream,{open:async()=>stream.link.includes('broken')?response(Buffer.from('quota'),'application/json',403):response(mp4)})});
+const {resolvePlayback}=require('../src/services/providerService');
+test('provider resolution falls through quota/unavailable media to verified media',async()=>{const result=await resolvePlayback({imdb_id:'tt1375666',title:'Inception',title_type:'Movie'});assert.equal(result.provider,'working');assert.equal(result.streams.length,1)});
+
+
+test('opaque source URLs use the detected container instead of the adapter guess',async()=>{const result=await filter([{link:'https://video.example/download?id=1',type:'mp4'}],{check:async()=>({ok:true,format:'mkv'})});assert.equal(result[0].type,'mkv')});

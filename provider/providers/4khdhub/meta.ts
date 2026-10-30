@@ -10,13 +10,13 @@ export const getMeta = async function ({
   try {
     const { axios, cheerio, getBaseUrl } = providerContext;
     const baseUrl = await getBaseUrl("4khdhub");
-    const url = `${baseUrl}${link}`;
+    const url = new URL(link, baseUrl).href;
     const res = await axios.get(url);
     const data = res.data;
     const $ = cheerio.load(data);
     const type = $(".season-content").length > 0 ? "series" : "movie";
-    const imdbId = "";
-    const title = $(".page-title").text() || "";
+    const imdbId = $('a[href*="imdb.com/title/"]').attr('href')?.match(/tt\d+/)?.[0] || "";
+    const title = $(".page-title").text().trim() || "";
     const image = $(".poster-image").find("img").attr("src") || "";
     const synopsis =
       $(".content-section").find("p").first().text().trim() || "";

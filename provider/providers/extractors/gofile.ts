@@ -6,11 +6,9 @@ export async function gofileExtractor(
     const gofileRes = await axios.get("https://gofile.io/d/" + id);
     const genAccountres = await axios.post("https://api.gofile.io/accounts");
     const token = genAccountres.data.data.token;
-    console.log("gofile token", token);
 
     const wtRes = await axios.get("https://gofile.io/dist/js/global.js");
     const wt = wtRes.data.match(/appdata\.wt\s*=\s*["']([^"']+)["']/)[1];
-    console.log("gofile wt", wt);
 
     const res = await axios.get(
       `https://api.gofile.io/contents/${id}?wt=${wt}`,

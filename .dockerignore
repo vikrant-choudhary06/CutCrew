@@ -1,0 +1,12 @@
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/.local
+**/*.log
+**/__pycache__
+**/.venv
+.git
+reports
+frontend/dist
+provider/dist

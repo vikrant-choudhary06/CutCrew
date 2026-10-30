@@ -1,0 +1,14 @@
+{
+  "defaultProviders": [
+    "4khdhub",
+    "vega"
+  ],
+  "description": "Default providers selected from live movie and episode checks. Other adapters remain available through ENABLED_PROVIDERS and diagnostics.",
+  "verification": {
+    "movie": "tt1375666",
+    "series": "tt0944947",
+    "season": 1,
+    "episode": 1
+  },
+  "disabledByDefaultReason": "Not verified for browser playback in the current live checks."
+}

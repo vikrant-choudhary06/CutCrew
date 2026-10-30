@@ -36,8 +36,6 @@ export const getStream = async ({
           "sec-fetch-site": "none",
           "sec-fetch-user": "?1",
           "upgrade-insecure-requests": "1",
-          cookie:
-            "PHPSESSID=9o57cff841dqtv8djtn1rp1712; ext_name=ojplmecpdpgccookcobabopnaifgidhf",
         },
       });
       const html = await res.text();

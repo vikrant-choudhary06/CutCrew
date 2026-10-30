@@ -2,53 +2,50 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
-
-/**
- * Creates the provider context required by the provider modules.
- * This mimics the context provided by dev-server.js in cut-crew-providers.
- */
-function getProviderContext() {
-  let getBaseUrl = () => "";
-  try {
-    // Attempt to load getBaseUrl.js from the providers dist directory
-    const getBaseUrlPath = path.join(__dirname, '../../../provider/dist/getBaseUrl.js');
-    if (fs.existsSync(getBaseUrlPath)) {
-      getBaseUrl = require(getBaseUrlPath).getBaseUrl;
-    } else {
-      console.warn("[ProviderHelper] getBaseUrl.js not found at " + getBaseUrlPath);
-    }
-  } catch (e) {
-    console.warn("[ProviderHelper] Could not load getBaseUrl.js", e);
+const crypto = require('crypto');
+const distDir = path.resolve(__dirname, '../../../provider/dist');
+const baseUrls = { expires: 0, data: null, pending: null };
+let registryRetryAt = 0;
+async function getBaseUrl(provider) {
+  const overrides = JSON.parse(process.env.PROVIDER_BASE_URLS || '{}');
+  if (overrides[provider]) return overrides[provider];
+  if (Date.now() < registryRetryAt) throw new Error('Provider registry is unavailable; configure PROVIDER_BASE_URLS or PROVIDER_REGISTRY_URL');
+  if (Date.now() > baseUrls.expires) {
+    if (!baseUrls.pending) baseUrls.pending = axios.get(
+      process.env.PROVIDER_REGISTRY_URL || 'https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/urls.json', { timeout: 8000 }
+    ).then(({ data }) => {
+      baseUrls.data = data;
+      baseUrls.expires = Date.now() + 3600000;
+    }).catch(error => { registryRetryAt = Date.now() + 60000; throw error; })
+      .finally(() => { baseUrls.pending = null; });
+    await baseUrls.pending;
   }
-
+  const url = baseUrls.data?.[provider]?.url;
+  if (!url) throw new Error('No base URL configured for provider ' + provider);
+  return url;
+}
+function getProviderContext(signal) {
+  const client = axios.create({ timeout: 10000, signal });
   return {
-    axios,
-    cheerio,
-    getBaseUrl,
-    commonHeaders: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    },
-    Aes: {}, // Assuming Aes is not heavily used or can be mocked this way for now.
+    axios: client, cheerio, getBaseUrl,
+    commonHeaders: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
+    Aes: { sha1: async input => crypto.createHash('sha1').update(String(input)).digest('hex') },
+    openWebView: async () => { throw new Error('This provider requires an interactive browser challenge'); },
   };
 }
-
-/**
- * Returns the list of available providers from the dist directory.
- */
-function getAvailableProvidersLocal() {
-  const distDir = path.join(__dirname, '../../../provider/dist');
-  if (!fs.existsSync(distDir)) {
-    console.error("[ProviderHelper] dist directory not found at", distDir);
-    return [];
-  }
-
-  return fs
-    .readdirSync(distDir, { withFileTypes: true })
-    .filter((item) => item.isDirectory())
-    .map((item) => item.name);
+function loadProvider(provider, moduleName) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(provider)) throw new Error('Invalid provider name');
+  const target = path.join(distDir, provider, moduleName + '.js');
+  return fs.existsSync(target) ? require(target) : {};
 }
-
-module.exports = {
-  getProviderContext,
-  getAvailableProvidersLocal
-};
+function getAvailableProvidersLocal({ includeUnverified = false } = {}) {
+  if (!fs.existsSync(distDir)) return [];
+  const configured = process.env.ENABLED_PROVIDERS?.split(',').map(s => s.trim()).filter(Boolean);
+  const defaults = require('../../../provider/provider-policy.json').defaultProviders;
+  const enabled = configured || (includeUnverified ? null : defaults);
+  const providers = fs.readdirSync(distDir, { withFileTypes: true })
+    .filter(item => item.isDirectory() && fs.existsSync(path.join(distDir, item.name, 'stream.js')))
+    .map(item => item.name).filter(name => !enabled || enabled.includes(name));
+  return providers.sort((a, b) => enabled ? enabled.indexOf(a) - enabled.indexOf(b) : a.localeCompare(b));
+}
+module.exports = { getProviderContext, getAvailableProvidersLocal, loadProvider };

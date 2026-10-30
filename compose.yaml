@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports: ["127.0.0.1:8080:80"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: backend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      SCRAPER_URL: http://imdbapi:8000
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
+    depends_on:
+      imdbapi:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+  imdbapi:
+    build:
+      context: .
+      dockerfile: IMDBAPI/Dockerfile
+    restart: unless-stopped

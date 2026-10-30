@@ -12,9 +12,9 @@ export const getMeta = async function ({
     const res = await axios.get(link);
     const data = res.data;
     const meta = {
-      title: "",
-      synopsis: "",
-      image: "",
+      title: data?.meta?.name || "",
+      synopsis: data?.meta?.description || "",
+      image: data?.meta?.poster || "",
       imdbId: data?.meta?.imdb_id || "",
       type: data?.meta?.type || "movie",
     };
@@ -67,7 +67,7 @@ export const getMeta = async function ({
         });
       }
     } else {
-      directLinks.push({ title: "Movie", link: link });
+      directLinks.push({ title: "Movie", link: JSON.stringify({ baseUrl, slug, type: meta.type }) });
       links.push({ title: "Movie", directLinks: directLinks });
     }
     return {

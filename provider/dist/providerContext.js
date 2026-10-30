@@ -41492,7 +41492,7 @@ var getBaseUrl = /* @__PURE__ */ __name((providerValue) => __async(null, null, f
     const cacheKey = "CacheBaseUrl" + providerValue;
     const timeKey = "baseUrlTime" + providerValue;
     const baseUrlRes = yield fetch(
-      "https://himanshu8443.github.io/providers/modflix.json"
+      "https://raw.githubusercontent.com/Zenda-Cross/vega-providers/refs/heads/main/urls.json"
     );
     const baseUrlData = yield baseUrlRes.json();
     baseUrl = baseUrlData[providerValue].url;

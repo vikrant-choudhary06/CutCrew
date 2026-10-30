@@ -1,117 +1,68 @@
-const express = require('express');
-const router = express.Router();
-const axios = require('axios');
+const router = require('express').Router();
 const { Movie } = require('../models');
+const { ensureMovie, isSeries } = require('../services/movieService');
+const { resolvePlayback, normalizeStreams, episodeFor } = require('../services/providerService');
+const { presentStreams } = require('../services/mediaService');
+const sourceProbe = require('../services/sourceProbe');
+const pending = new Map();
+const CACHE_MS = 3 * 60 * 60 * 1000;
 
 router.get('/:imdb_id', async (req, res, next) => {
   try {
-    const { imdb_id } = req.params;
-    const { season, episode } = req.query;
-
-    const movie = await Movie.findOne({ imdb_id });
-    if (!movie) {
-      return res.status(404).json({ error: 'Movie/Series not found in database' });
+    const movie = await ensureMovie(req.params.imdb_id);
+    const series = isSeries(movie);
+    const season = Number(req.query.season), episode = Number(req.query.episode);
+    if (series && (!Number.isInteger(season) || season < 1 || !Number.isInteger(episode) || episode < 1)) {
+      return res.status(400).json({ error: 'Choose a valid season and episode' });
     }
-
-    // Strict Verification Logic for Content Type
-    let isSeries = false;
-    const titleType = (movie.title_type || '').toLowerCase();
-    if (titleType.includes('tv') || titleType.includes('series') || titleType.includes('episode')) {
-      isSeries = true;
+    if (!series && (req.query.season || req.query.episode)) return res.status(400).json({ error: 'This title is a movie' });
+    const excludedProviders = typeof req.query.exclude === 'string' ? req.query.exclude.split(',').filter(Boolean).slice(0, 41) : [];
+    const target = series ? episodeFor(movie, season, episode) : movie;
+    const cachedProvider = target?.provider_name || movie.provider_name;
+    const cached = normalizeStreams(target?.stream_data);
+    if (req.query.refresh !== '1' && !excludedProviders.includes(cachedProvider) && cached.length &&
+        Date.now() - new Date(target.stream_fetched_at).getTime() < CACHE_MS) {
+      res.set('Cache-Control', 'no-store');
+      const usable=await sourceProbe.filterPlayable(cached);
+      if(usable.length)return res.json({ streams: presentStreams(usable), provider: cachedProvider, cached: true });
     }
-    const contentType = isSeries ? 'tv' : 'movie'; // strict type
-
-    // 1. Check Stream Cache
-    const CACHE_HOURS = 3;
-    const cacheLimit = new Date(Date.now() - CACHE_HOURS * 60 * 60 * 1000);
-
-    let targetEpisode = null;
-    if (isSeries && season && episode && movie.seasons && movie.seasons.length > 0) {
-      const targetSeason = movie.seasons.find(s => s.season_number === parseInt(season, 10));
-      if (targetSeason) {
-        targetEpisode = targetSeason.episodes.find(e => e.episode_number === parseInt(episode, 10));
-      }
-      if (!targetEpisode) {
-        return res.status(404).json({ error: 'Streaming link unavailable for this specific episode' });
-      }
-
-      // Check episode cache
-      if (targetEpisode.stream_data && targetEpisode.stream_fetched_at && targetEpisode.stream_fetched_at > cacheLimit) {
-        console.log(`[Cache] Serving cached stream for Series ${imdb_id} S${season} E${episode}`);
-        return res.status(200).json(targetEpisode.stream_data);
-      }
-    } else {
-      // Movie cache check
-      if (movie.stream_data && movie.stream_fetched_at && movie.stream_fetched_at > cacheLimit) {
-        console.log(`[Cache] Serving cached stream for Movie ${imdb_id}`);
-        return res.status(200).json(movie.stream_data);
-      }
-    }
-
-    // 2. Not cached or expired. Fetch from Provider using imdb_id if applicable, or target link.
-    // Provider strict IMDB payload:
-    let targetLink = isSeries ? (targetEpisode ? targetEpisode.link : '') : movie.defaultStreamLink;
-    const provider = movie.provider_name || 'autoEmbed';
-
-    // Call 3: Request the final stream playable links from provider directly via module
-    const path = require('path');
-    const fs = require('fs');
-    const { getProviderContext } = require('../utils/providerHelper');
-    
-    const distDir = path.join(__dirname, '../../../provider/dist');
-    const streamModulePath = path.join(distDir, provider, 'stream.js');
-    
-    if (!fs.existsSync(streamModulePath)) {
-      throw new Error(`Provider ${provider} stream module not found`);
-    }
-    
-    const streamModule = require(streamModulePath);
-    if (!streamModule.getStream) {
-      throw new Error(`Provider ${provider} does not support getStream`);
-    }
-    
-    const providerContext = getProviderContext();
-    const signal = new AbortController().signal;
-    
-    const streamData = await streamModule.getStream({ 
-      link: targetLink || imdb_id, 
-      type: contentType, 
-      signal, 
-      providerContext 
-    });
-
-    // Save to Cache
-    if (isSeries && targetEpisode) {
-      await Movie.findOneAndUpdate(
-        { imdb_id, "seasons.season_number": parseInt(season, 10), "seasons.episodes.episode_number": parseInt(episode, 10) },
-        { 
-          $set: { 
-            "seasons.$[season].episodes.$[episode].stream_data": streamData,
-            "seasons.$[season].episodes.$[episode].stream_fetched_at": new Date()
-          } 
-        },
-        { 
-          arrayFilters: [ { "season.season_number": parseInt(season, 10) }, { "episode.episode_number": parseInt(episode, 10) } ]
+    const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(',')].join(':');
+    if (!pending.has(key)) {
+      const job = (async () => {
+        const result = await resolvePlayback(movie.toObject(), { season, episode, excludedProviders, rediscover:req.query.refresh==='1'||cached.length>0 });
+        const now = new Date();
+        if (series) {
+          // Update only the requested episode. Concurrent requests for other episodes keep their caches.
+          let saved = await Movie.updateOne({ imdb_id: movie.imdb_id,
+            seasons: { $elemMatch: { season_number: season, episodes: { $elemMatch: { episode_number: episode } } } },
+          }, { $set: {
+            'seasons.$[s].episodes.$[e].stream_data': result.streams,
+            'seasons.$[s].episodes.$[e].stream_fetched_at': now,
+            'seasons.$[s].episodes.$[e].provider_name': result.provider,
+            'seasons.$[s].episodes.$[e].link': episodeFor(result.candidate, season, episode)?.link,
+          } }, { arrayFilters: [{ 's.season_number': season }, { 'e.episode_number': episode }] });
+          // A direct playback request may arrive before episode discovery has populated the title.
+          if (!saved.matchedCount && result.candidate?.seasons) {
+            const seasons = result.candidate.seasons;
+            const ep = episodeFor({ seasons }, season, episode);
+            if (ep) { ep.stream_data = result.streams; ep.stream_fetched_at = now; ep.provider_name = result.provider; }
+            await Movie.updateOne({ imdb_id: movie.imdb_id, 'seasons.0': { $exists: false } },
+              { $set: { seasons, provider_name: result.provider } });
+          }
+        } else {
+          await Movie.updateOne({ imdb_id: movie.imdb_id }, { $set: {
+            provider_name: result.provider, defaultStreamLink: result.candidate.defaultStreamLink,
+            stream_data: result.streams, stream_fetched_at: now,
+          } });
         }
-      );
-    } else {
-      await Movie.findOneAndUpdate(
-        { imdb_id },
-        { 
-          $set: { 
-            stream_data: streamData,
-            stream_fetched_at: new Date()
-          } 
-        }
-      );
+        return { streams: result.streams, provider: result.provider };
+      })();
+      pending.set(key, job);
+      job.finally(() => { if (pending.get(key) === job) pending.delete(key); }).catch(() => {});
     }
-
-    return res.status(200).json(streamData);
-
-  } catch (error) {
-    console.error('Error fetching stream links from provider:', error.message);
-    return res.status(503).json({ error: 'Streaming links unavailable' });
-  }
+    const result = await pending.get(key);
+    res.set('Cache-Control', 'no-store');
+    res.json({ streams: presentStreams(result.streams), provider: result.provider, cached: false });
+  } catch (error) { next(error); }
 });
-
 module.exports = router;

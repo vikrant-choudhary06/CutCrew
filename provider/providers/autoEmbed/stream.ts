@@ -15,7 +15,7 @@ export const getStream = async ({
       try {
         return JSON.parse(id);
       } catch {
-        return { tmdbId: id };
+        return /^tt\d+$/.test(id) ? { imdbId: id } : { tmdbId: id };
       }
     })();
 
@@ -26,23 +26,21 @@ export const getStream = async ({
     const episode: string = payload.episode ?? "";
     const effectiveType: string = payload.type ?? type ?? "movie";
 
-    await getWebstreamerStream(
+    await Promise.allSettled([getWebstreamerStream(
       String(imdbId),
       episode,
       season,
       effectiveType,
       streams,
       providerContext
-    );
-
-    await getRiveStream(
+    ), getRiveStream(
       String(tmdbId),
       episode,
       season,
       effectiveType,
       streams,
       providerContext
-    );
+    )]);
     return streams;
   } catch (err) {
     console.error(err);

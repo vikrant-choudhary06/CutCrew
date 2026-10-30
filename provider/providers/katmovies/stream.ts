@@ -42,7 +42,6 @@ async function extractKmhdLink(
 ) {
   const { axios, openWebView, commonHeaders } = providerContext;
   const res = await getWithWAF(katlink, axios, openWebView, commonHeaders, {
-    Cookie: "unlocked=true",
   });
   const data = res.data;
   const hubDriveRes = data.match(/hubdrive_res:\s*"([^"]+)"/)[1];

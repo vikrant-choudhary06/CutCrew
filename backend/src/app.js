@@ -13,7 +13,8 @@ const app = express();
 const path = require('path');
 
 // Middleware
-app.use(cors());
+const frontendOrigins = (process.env.FRONTEND_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(',').map(value => value.trim());
+app.use(cors({ credentials: true, origin: (origin, callback) => callback(null, !origin || frontendOrigins.includes(origin)) }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
@@ -23,7 +24,8 @@ app.get('/', (req, res) => {
   res.send('<h2>Welcome to the Movie Scraper API!</h2><p>Backend is up and running.</p>');
 });
 
-app.get('/admin', (req, res) => {
+app.get('/admin/tools', require('./middlewares/adminAuth'), (_req,res)=>res.sendFile(path.join(__dirname,'views/admin-tools.html')));
+app.get('/admin', require('./middlewares/adminAuth'), (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -48,7 +50,7 @@ app.get('/admin', (req, res) => {
     </head>
     <body>
       <div class="container">
-        <h1>Admin Dashboard</h1>
+        <h1>Admin Dashboard</h1><p><a href="/admin/tools" style="color:#4fc1ff">Catalogue and provider health →</a></p>
         <div class="stats">
           <div class="card">
             <h3>Registered Users</h3>
@@ -85,7 +87,8 @@ app.get('/admin', (req, res) => {
               const body = document.getElementById('term-body');
               body.innerHTML = json.data.map(log => {
                 const isErr = log.includes('ERROR:');
-                return \`<div class="\${isErr ? 'log-error' : 'log-normal'}">\${log}</div>\`;
+                const escaped = log.replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+                return \`<div class="\${isErr ? 'log-error' : 'log-normal'}">\${escaped}</div>\`;
               }).join('');
               body.scrollTop = body.scrollHeight;
             }
