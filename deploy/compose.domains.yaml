@@ -1,0 +1,11 @@
+# Optional overlay for a server that gives the backend and IMDb API their own
+# domains through a host Nginx (deploy/nginx/cutcrew.conf):
+#   docker compose -f compose.yaml -f deploy/compose.domains.yaml up -d
+# Ports bind to 127.0.0.1 only: the internet reaches them through Nginx (HTTPS),
+# never directly. The Telegram Bot API server stays private on purpose: every
+# request to it carries the bot token.
+services:
+  backend:
+    ports: ["127.0.0.1:5000:5000"]
+  imdbapi:
+    ports: ["127.0.0.1:8000:8000"]
