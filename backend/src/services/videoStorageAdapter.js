@@ -90,10 +90,28 @@ function createTelegramAdapter(config, { botCall = defaultBotCall, connect = req
   if (!config?.ready) throw new StorageAdapterError('CONFIGURATION_INCOMPLETE');
   let session, connecting;
   const readers = new Map();
+  // Drops a dead connection (and the readers bound to it) so the next call reconnects.
+  const reset = dead => {
+    if (!dead || session !== dead) return;
+    readers.clear(); session = undefined;
+    Promise.resolve(dead.close()).catch(() => {});
+  };
   const mtproto = async () => {
+    if (session && session.isConnected?.() === false) reset(session);
     if (session) return session;
     connecting ||= connect(config, { downloadSessions, downloadInflight }).then(value => { session = value; return value; }).finally(() => { connecting = undefined; });
     return connecting;
+  };
+  // Runs one MTProto operation; if it failed because the connection dropped,
+  // reconnects and tries once more. Other errors pass through unchanged.
+  const withSession = async work => {
+    const first = await mtproto();
+    try { return await work(first); }
+    catch (error) {
+      if (first.isConnected?.() !== false) throw error;
+      reset(first);
+      return work(await mtproto());
+    }
   };
   const ownChat = chatId => {
     if (String(chatId) !== String(config.channelId)) throw new StorageAdapterError('STORAGE_CHAT_MISMATCH');
@@ -104,10 +122,9 @@ function createTelegramAdapter(config, { botCall = defaultBotCall, connect = req
   });
   const expectedIdentity = ref => (ref.documentId != null && ref.size != null ? { id: String(ref.documentId), size: Number(ref.size) } : undefined);
 
-  async function readerFor(ref) {
+  async function readerFor(ref, client) {
     const key = Number(ref.messageId);
     if (!readers.has(key)) {
-      const client = await mtproto();
       const message = await client.message(key, expectedIdentity(ref));
       readers.set(key, client.reader(message));
     }
@@ -130,32 +147,31 @@ function createTelegramAdapter(config, { botCall = defaultBotCall, connect = req
     },
     async lookupMessage(ref) {
       ownChat(ref.chatId);
-      const client = await mtproto();
-      return describeMessage(await client.message(Number(ref.messageId), expectedIdentity(ref)));
+      return withSession(async client => describeMessage(await client.message(Number(ref.messageId), expectedIdentity(ref))));
     },
     async refreshReference(ref) {
       ownChat(ref.chatId);
-      const reader = await readerFor(ref);
-      await reader.refresh();
-      const client = await mtproto();
-      return describeMessage(await client.message(Number(ref.messageId), expectedIdentity(ref)));
+      return withSession(async client => {
+        await (await readerFor(ref, client)).refresh();
+        return describeMessage(await client.message(Number(ref.messageId), expectedIdentity(ref)));
+      });
     },
     async probeUploads({ chatId, fromMessageId, count }) {
       ownChat(chatId);
       const ids = probeIds(fromMessageId, count);
-      const client = await mtproto();
-      const found = [];
-      for (let i = 0; i < ids.length; i += 100) {
-        for (const row of await client.messages(ids.slice(i, i + 100))) if (row) found.push({ messageId: row.id, caption: row.caption, documentId: row.documentId, size: row.size });
-      }
-      return found;
+      return withSession(async client => {
+        const found = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          for (const row of await client.messages(ids.slice(i, i + 100))) if (row) found.push({ messageId: row.id, caption: row.caption, documentId: row.documentId, size: row.size });
+        }
+        return found;
+      });
     },
     async readRange(ref, offset, length, { signal } = {}) {
       ownChat(ref.chatId);
       checkRange(offset, length, ref.size);
       if (signal?.aborted) throw new StorageAdapterError('READ_CANCELLED');
-      const reader = await readerFor(ref);
-      return reader.read(offset, length);
+      return withSession(async client => (await readerFor(ref, client)).read(offset, length));
     },
     async close() {
       readers.clear();

@@ -86,6 +86,36 @@ test('with the switch off, storage is never consulted', async () => {
   assert.equal(body.provider, 'sample'); assert.equal(lookups.length, 0);
 });
 
+test('a dropped Telegram connection is replaced and the read retried; other errors are not retried', async () => {
+  const { createTelegramAdapter } = require('../src/services/videoStorageAdapter');
+  const { configuration } = require('../src/services/telegramStorage');
+  const doc = { id: { toString: () => '777' }, size: { toString: () => '100' } };
+  let connects = 0;
+  const sessions = [];
+  const connect = async () => {
+    const n = ++connects;
+    let alive = true, reads = 0;
+    const s = { n, isConnected: () => alive, close: async () => { alive = false; },
+      message: async id => ({ id, document: doc }),
+      reader: () => ({ read: async (o, l) => {
+        reads++;
+        if (n === 1 && reads === 2) { alive = false; throw new Error('Not connected'); } // connection drops mid-stream
+        if (n === 2 && o === 50) throw Object.assign(new Error('bad'), { code: 'SOME_TELEGRAM_ERROR' });
+        return Buffer.alloc(l, n);
+      }, refresh: async () => {} }) };
+    sessions.push(s);
+    return s;
+  };
+  const adapter = createTelegramAdapter(configuration(TELEGRAM), { connect });
+  const ref = { chatId: TELEGRAM.TELEGRAM_STORAGE_CHANNEL_ID, messageId: 5, size: 100 };
+  assert.equal((await adapter.readRange(ref, 0, 10))[0], 1, 'first read on connection 1');
+  assert.equal((await adapter.readRange(ref, 10, 10))[0], 2, 'dropped connection replaced, read retried on connection 2');
+  assert.equal(connects, 2);
+  await assert.rejects(adapter.readRange(ref, 50, 10), /bad/);
+  assert.equal(connects, 2, 'a normal error on a live connection does not reconnect');
+  await adapter.close();
+});
+
 test('a failing or slow storage lookup falls back to providers instead of blocking playback', async () => {
   lookupImpl = async () => { throw Object.assign(new Error('Query read timeout')); };
   assert.equal((await play('tt1375666')).body.provider, 'sample');

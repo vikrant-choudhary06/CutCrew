@@ -48,7 +48,11 @@ async function connect(config=configuration(),{downloadSessions=1,downloadInflig
     downloadPool:{partSize:512*1024,sessions,inflightPerDc:inflight,maxSessions:sessions,requestRetries:1,requestDeadlineMs:config.requestMs},
   });
   client.onError=async()=>{}; // Errors are reported by the sanitized operator boundary.
+  // Setup (connect/auth): a hung step destroys the half-built client.
   const timed=promise=>deadline(promise,config.requestMs,()=>client.destroy());
+  // After setup, a slow request only fails itself. Destroying the shared client
+  // here would break every other stream using it (seen in the 6 GB test).
+  const soft=promise=>deadline(promise,config.requestMs);
   try{
     await timed(client.connect());
     if(!await timed(client.checkAuthorization()))await timed(client.invoke(new Api.auth.ImportBotAuthorization({
@@ -60,7 +64,7 @@ async function connect(config=configuration(),{downloadSessions=1,downloadInflig
     const peer=await timed(client.getInputEntity(helpers.returnBigInt(config.channelId)));
     await privateJson(config.sessionPath,{schema:1,botId:expectedBot,session:client.session.save()});
     async function message(id,expected){
-      const rows=await timed(client.getMessages(peer,{ids:[id]})),value=rows[0];
+      const rows=await soft(client.getMessages(peer,{ids:[id]})),value=rows[0];
       if(!value?.document)throw new Phase0Error('UPLOADED_MESSAGE_NOT_ACCESSIBLE');
       const identity={id:value.document.id.toString(),size:Number(value.document.size.toString())};
       if(expected&&(identity.id!==expected.id||identity.size!==expected.size))throw new Phase0Error('REFERENCED_FILE_CHANGED');
@@ -70,11 +74,13 @@ async function connect(config=configuration(),{downloadSessions=1,downloadInflig
     // non-document messages come back as null.
     async function messages(ids){
       if(!Array.isArray(ids)||!ids.length||ids.length>100)throw new Phase0Error('INVALID_MESSAGE_IDS');
-      const rows=await timed(client.getMessages(peer,{ids}));
+      const rows=await soft(client.getMessages(peer,{ids}));
       return ids.map((id,i)=>{const row=rows[i];return row?.document?{id,caption:row.message||'',documentId:row.document.id.toString(),size:Number(row.document.size.toString())}:null;});
     }
-    const reader=initial=>makeReader(client,peer,initial,message,timed,config.requestMs);
-    return {botId:String(me.id),message,messages,reader,close:()=>client.destroy()};
+    const reader=initial=>makeReader(client,peer,initial,message,soft,config.requestMs);
+    // Lets the adapter notice a dropped connection and reconnect.
+    const isConnected=()=>!client._destroyed&&client.connected!==false;
+    return {botId:String(me.id),message,messages,reader,isConnected,close:()=>client.destroy()};
   }catch(error){await client.destroy().catch(()=>{});throw error;}
 }
 module.exports={connect,deadline,makeReader};
