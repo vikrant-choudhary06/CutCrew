@@ -17,6 +17,16 @@ The root compose file packages the frontend, Node backend with compiled provider
 - The frontend is published on `127.0.0.1:8080`. Set `FRONTEND_PORT` to use another port, for example when Windows reserves 8080.
 - To skip the long build on a small server, build the images on a faster machine and move them with a registry or `docker save` / `docker load`.
 
+### Auto-save from providers
+
+With `AUTO_ARCHIVE_ENABLED=true` (and Telegram storage on), a movie or episode watched from a provider for 5 minutes is downloaded once in the background and imported like a manual upload. Nothing is downloaded twice: the storage index is checked before queueing and again before downloading, and the queue keeps one row per title.
+
+- Skipped automatically: HEVC/x265 and other non-browser video (it would need hours of conversion), anything above `AUTO_ARCHIVE_MAX_HEIGHT` (1080p), and files over `AUTO_ARCHIVE_MAX_BYTES` (8 GB).
+- At most `AUTO_ARCHIVE_DAILY_LIMIT` (10) new downloads per 24 hours, one at a time. Uploads that already downloaded can always finish.
+- Needs free disk of about 3x the film while it runs. Work files sit in `backend-data` (`AUTO_ARCHIVE_WORK_DIR`, `VIDEO_WORK_DIR`), so a restart resumes the upload instead of downloading again.
+- Every saved title costs bandwidth twice (download + upload to Telegram). Check your plan's monthly transfer limit.
+- The queue, today's download count and a "Try again" button are on `/admin/storage`.
+
 Local development on Windows is unchanged: `node scripts/telegram-local.cjs` in WSL plus `npm start`, with `TELEGRAM_BOT_API_URL=http://127.0.0.1:8081`.
 
 1. Configure backend/.env with DATABASE_URL, unique ADMIN_TOKEN and persistent MEDIA_TOKEN_SECRET. Set FRONTEND_ORIGINS in the deployment shell (or a root .env) to the actual HTTPS frontend origin, including scheme. Do not use a wildcard for credentialed account requests.

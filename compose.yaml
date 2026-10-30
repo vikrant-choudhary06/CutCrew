@@ -20,6 +20,11 @@ services:
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
       # Talks to the Telegram server below over the private Compose network.
       TELEGRAM_BOT_API_URL: http://telegram-bot-api:8081
+      # Work files live on the backend-data volume, so an import or auto-save
+      # interrupted by a restart or rebuild can resume.
+      VIDEO_WORK_DIR: /app/backend/.local/video-import
+      STREAM_CACHE_DIR: /app/backend/.local/stream-cache
+      AUTO_ARCHIVE_WORK_DIR: /app/backend/.local/auto-archive
     volumes:
       # Telegram session, video cache and import files survive rebuilds.
       - backend-data:/app/backend/.local

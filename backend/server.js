@@ -34,7 +34,11 @@ async function start() {
   await connectDB();
   startCronJobs();
   const server = app.listen(PORT, () => console.log(`Server is running on port ${PORT} (PostgreSQL)`));
+  // Saves watched provider titles to Telegram in the background (AUTO_ARCHIVE_ENABLED).
+  const autoArchive = require('./src/services/autoArchive');
+  autoArchive.start({ port: PORT });
   const shutdown = () => {
+    autoArchive.stop();
     server.close(async () => { await connectDB.close(); logStream.end(); });
     server.closeIdleConnections();
   };

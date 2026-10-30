@@ -351,6 +351,18 @@ async function claimJob(workerId, { leaseMs = 120000 } = {}) {
   });
 }
 
+// Claims one specific job (queued, or running with an expired lease). Used by
+// the auto-save worker so it only ever runs the import it created.
+async function claimJobById(jobId, workerId, { leaseMs = 120000 } = {}) {
+  if (typeof workerId !== 'string' || !workerId || workerId.length > 100) fail('INVALID_WORKER_ID');
+  const row = (await db.query(
+    `UPDATE video_import_jobs SET status = 'running', lease_owner = $2, attempts = attempts + 1,
+       lease_expires_at = now() + ($3::int * interval '1 millisecond'), heartbeat_at = now(), updated_at = now()
+     WHERE id = $1 AND (status = 'queued' OR (status = 'running' AND lease_expires_at < now())) RETURNING *`,
+    [jobId, workerId, leaseMs])).rows[0];
+  return mapJob(row);
+}
+
 async function heartbeatJob(jobId, workerId, { leaseMs = 120000, progress } = {}) {
   const result = await db.query(
     `UPDATE video_import_jobs SET lease_expires_at = now() + ($3::int * interval '1 millisecond'), heartbeat_at = now(),
@@ -487,6 +499,6 @@ module.exports = {
   VideoStorageError, normalizeIdentity, normalizeVariant, planParts, messageLink,
   createImport, getAsset, listParts, transitionAsset, recordPreparedFile, recordPartUpload, markPartVerified,
   refreshPartReference, publishReady, setDefault, markPartMissing, findReadyVersions, findReadyAsset,
-  claimJob, heartbeatJob, advanceJob, completeJob, failJob, getJob, maxMessageId, resetPartForReupload, getActiveJobForAsset, listAssets,
+  claimJob, claimJobById, heartbeatJob, advanceJob, completeJob, failJob, getJob, maxMessageId, resetPartForReupload, getActiveJobForAsset, listAssets,
   listAssetsWithJobs, storageCounts, touchValidated, markPartReverified, retryJob, assetsDueForValidation,
 };

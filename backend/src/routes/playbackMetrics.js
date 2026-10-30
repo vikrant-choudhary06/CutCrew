@@ -12,7 +12,14 @@ router.post('/metrics',(req,res)=>{
   const value=req.body[field];if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>max)return res.status(400).json({message:'Invalid playback measurements'});result[field]=Math.round(value*100)/100;
  }
  if(storedAsset)require('../services/storedMetrics').recordPlayback({assetId:storedAsset,...result});
- else health.playback(sessionId,result);
+ else{
+  health.playback(sessionId,result);
+  // Watched long enough from a provider: queue this title to be saved to Telegram.
+  // Season/episode are optional, but must come as a valid pair.
+  const season=Number.isSafeInteger(req.body.season)&&req.body.season>=0&&req.body.season<=1000?req.body.season:null;
+  const episode=Number.isSafeInteger(req.body.episode)&&req.body.episode>=1&&req.body.episode<=100000?req.body.episode:null;
+  if((season===null)===(episode===null))require('../services/autoArchive').noteWatched({imdbId:titleId,season,episode,playedSeconds:result.playedSeconds,sourceToken:req.body.token});
+ }
  res.status(202).json({ok:true});
 });
 module.exports=router;

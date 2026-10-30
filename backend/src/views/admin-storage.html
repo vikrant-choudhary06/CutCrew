@@ -23,6 +23,12 @@ button:disabled{opacity:.5;cursor:wait}pre{white-space:pre-wrap;color:#b9c6d6;fo
 <section><h2>Status</h2><div class="cards" id="statusCards"></div><p class="muted" id="hint"></p></section>
 <section><h2>Monitoring <span class="muted">(this server process, last 24 h; resets on restart)</span></h2><div class="cards" id="monitorCards"></div></section>
 
+<section><h2>Auto-save from providers</h2>
+<p class="muted">Titles watched from a provider for a few minutes are downloaded once and saved here. Each title is saved only once.</p>
+<div class="cards" id="autoCards"></div>
+<table><thead><tr><th>Title</th><th>Status</th><th class="hide-sm">Tries</th><th class="hide-sm">Updated</th><th></th></tr></thead><tbody id="autoList"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+</section>
+
 <section><h2>Imports</h2>
 <form class="filters" id="filters"><select id="state" aria-label="State"><option value="">All states</option>
 <option>ready</option><option>failed</option><option>unavailable</option><option>uploading</option><option>verifying</option><option>preparing</option><option>validating</option><option>pending</option><option>superseded</option></select>
@@ -105,7 +111,27 @@ async function detail(id,keepResult=false){
   }catch(e){status.textContent='Details unavailable: '+e.message}
 }
 
+async function autoSave(){
+  try{const {status:s,counts:c,data}=await api('/auto-archive');const by=c.byStatus||{};
+    const now=s.current?(s.current.imdbId+(s.current.season!=null?' S'+s.current.season+'E'+s.current.episode:'')):'Nothing right now';
+    const p=s.progress||{};const done=p.expectedSeconds&&p.downloadedSeconds!=null?Math.min(100,Math.round(p.downloadedSeconds/p.expectedSeconds*100))+'% · '+mb(p.downloadedBytes):null;
+    $('#autoCards').replaceChildren(
+      card('Auto-save',s.enabled?'ON':'OFF',s.enabled?'After '+Math.round(s.minWatchSeconds/60)+' min watched · up to '+s.maxHeight+'p':(s.requested?'Needs Telegram storage switched on':'AUTO_ARCHIVE_ENABLED=false')),
+      card('Working on',now,s.current?s.phase+(done&&s.phase==='downloading'?' · '+done:''):null),
+      card('Downloads today',c.downloadsLast24h+' / '+s.dailyLimit,s.dailyLimitReached?'Daily limit reached: new downloads wait':null),
+      card('Saved / queued',(by.done||0)+' / '+((by.queued||0)+(by.running||0))),
+      card('Skipped / failed',(by.skipped||0)+' / '+(by.failed||0),'Skipped = cannot be stored as it is (e.g. HEVC, 4K)'));
+    const body=$('#autoList');body.replaceChildren();
+    if(!data.length){const tr=el('tr');const td=el('td','Nothing queued yet.');td.colSpan=5;tr.append(td);body.append(tr);return}
+    for(const r of data){const tr=el('tr');
+      const st=el('td');st.append(el('span',r.status,'badge '+({done:'ready',failed:'failed',skipped:'superseded',running:'uploading',queued:'pending'}[r.status]||'')));
+      if(r.reason)st.append(el('div',r.reason,'muted'));if(r.status==='queued'&&r.nextRunAt)st.append(el('div','next try '+when(r.nextRunAt),'muted'));
+      const act=el('td');if(['failed','skipped'].includes(r.status)){const b=el('button','Try again');b.onclick=async()=>{b.disabled=true;try{await post('/auto-archive/'+r.id+'/retry');autoSave()}catch(e){status.textContent='Retry failed: '+e.message;b.disabled=false}};act.append(b)}
+      tr.append(el('td',r.imdbId+(r.season!=null?' · S'+r.season+'E'+r.episode:'')),st,el('td',r.attempts,'hide-sm'),el('td',when(r.updatedAt),'hide-sm'),act);body.append(tr)}
+  }catch(e){$('#autoCards').replaceChildren(card('Auto-save','—','Unavailable: '+e.message))}
+}
+
 $('#filters').onsubmit=e=>{e.preventDefault();list()};
-$('#refresh').onclick=()=>{summary();list()};
-summary();list();setInterval(summary,30000);
+$('#refresh').onclick=()=>{summary();list();autoSave()};
+summary();list();autoSave();setInterval(()=>{summary();autoSave()},30000);
 </script>

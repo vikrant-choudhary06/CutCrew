@@ -22,6 +22,7 @@ function defaultDeps() {
     adapter: () => runtime.getAdapter(videoStorageConfig({ ...process.env, TELEGRAM_STORAGE_ENABLED: 'true' })),
     streamer: () => runtime.peekStreamer(),
     forgetAsset: id => runtime.forgetAsset(id),
+    autoArchive: { status: () => require('../services/autoArchive').status(), repo: require('../services/autoArchiveRepository') },
     botApiReachable: async () => {
       const { configuration } = require('../services/telegramStorage');
       const url = configuration().baseUrl;
@@ -88,6 +89,26 @@ function createAdminStorageRouter(deps = defaultDeps()) {
   action('restore', (id, body) => deps.maintenance.restoreAsset(id, { adapter: deps.adapter(), mode: body.mode === 'deep' ? 'deep' : 'quick' }));
   action('default', id => deps.repo.setDefault(id).then(() => ({ isDefault: true })));
   action('unavailable', id => deps.repo.transitionAsset(id, 'ready', 'unavailable').then(a => ({ state: a.state })));
+
+  // Auto-save queue. The viewer's encrypted source token is never sent out.
+  const publicRequest = r => ({ id: r.id, imdbId: r.imdbId, season: r.season, episode: r.episode, status: r.status, reason: r.reason,
+    attempts: r.attempts, nextRunAt: r.nextRunAt, downloadStartedAt: r.downloadStartedAt, assetId: r.assetId, progress: r.progress,
+    createdAt: r.createdAt, updatedAt: r.updatedAt });
+  router.get('/auto-archive', async (_req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      const [counts, data] = await Promise.all([deps.autoArchive.repo.counts(), deps.autoArchive.repo.list({ limit: 100 })]);
+      res.json({ status: deps.autoArchive.status(), counts, data: data.map(publicRequest) });
+    } catch (error) { fail(res, error); }
+  });
+  router.post('/auto-archive/:id/retry', requireActionHeader, assetId, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      const request = await deps.autoArchive.repo.retry(req.params.id);
+      if (!request) return res.status(409).json({ error: 'STATE_CONFLICT' });
+      res.json({ ok: true, result: publicRequest(request) });
+    } catch (error) { fail(res, error); }
+  });
 
   return router;
 }
