@@ -3,8 +3,21 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "test": "node --test test/*.test.js",
+    "start": "node server.js",
+    "providers:check": "node scripts/check-providers.cjs",
+    "db:check": "node scripts/db-check.cjs",
+    "db:migrate": "node scripts/db-check.cjs",
+    "db:import": "node scripts/migrate-mongo.cjs",
+    "db:local:start": "node scripts/local-db.cjs start",
+    "db:local:stop": "node scripts/local-db.cjs stop",
+    "db:local:status": "node scripts/local-db.cjs status",
+    "preview": "node test/local-server.cjs",
+    "db:backup": "node scripts/backup-postgres.cjs",
+    "providers:matrix": "node scripts/check-content-reliability.cjs",
+    "telegram:check": "node scripts/telegram-phase0.cjs check",
+    "telegram:poc": "node scripts/telegram-phase0.cjs",
+    "video:import": "node scripts/video-import.cjs"
   },
   "keywords": [],
   "author": "",
@@ -16,7 +29,13 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.7.0",
-    "node-cron": "^4.2.1"
+    "node-cron": "^4.2.1",
+    "nodemailer": "^10.2.1",
+    "pg": "^8.23.1",
+    "teleproto": "1.232.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.12",
+    "mongodb": "^7.7.0"
   }
 }
