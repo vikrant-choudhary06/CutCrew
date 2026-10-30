@@ -4,6 +4,7 @@ const { ensureMovie, isSeries } = require('../services/movieService');
 const { resolvePlayback, normalizeStreams, episodeFor } = require('../services/providerService');
 const { presentStreams } = require('../services/mediaService');
 const sourceProbe = require('../services/sourceProbe');
+const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
 const pending = new Map();
 const CACHE_MS = 3 * 60 * 60 * 1000;
 
@@ -17,6 +18,16 @@ router.get('/:imdb_id', async (req, res, next) => {
     }
     if (!series && (req.query.season || req.query.episode)) return res.status(400).json({ error: 'This title is a movie' });
     const excludedProviders = typeof req.query.exclude === 'string' ? req.query.exclude.split(',').filter(Boolean).slice(0, 41) : [];
+    // Telegram storage first (only when enabled and a Ready version exists).
+    // The player excludes it after a failure, which falls through to providers.
+    if (!excludedProviders.includes(STORAGE_PROVIDER)) {
+      const stored = await storedSources({ imdbId: movie.imdb_id, season: series ? season : null, episode: series ? episode : null,
+        quality: typeof req.query.quality === 'string' ? req.query.quality : undefined });
+      if (stored.length) {
+        res.set('Cache-Control', 'no-store');
+        return res.json({ streams: stored, provider: STORAGE_PROVIDER, cached: false, stored: true });
+      }
+    }
     const target = series ? episodeFor(movie, season, episode) : movie;
     const cachedProvider = target?.provider_name || movie.provider_name;
     const cached = normalizeStreams(target?.stream_data);

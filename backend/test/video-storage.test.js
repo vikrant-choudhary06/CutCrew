@@ -276,11 +276,16 @@ test('storage is disabled by default and a misconfigured switch never enables it
   assert.equal(redact(`GET /bot${telegramEnv.TELEGRAM_BOT_TOKEN}/getMe hash=${telegramEnv.TELEGRAM_API_HASH}`, telegramEnv).includes('xxxxxxxx'), false);
 });
 
-test('existing provider playback does not load the storage integration', async () => {
-  const sources = ['src/app.js', 'src/routes/index.js', 'src/routes/playMovie.js', 'server.js'];
-  for (const file of sources) {
+test('with the switch off, playback never touches the storage index', async () => {
+  // Phase 4 lets Play consult storage, but only through storedSources, which
+  // returns nothing without reading the database while the switch is off.
+  const { storedSources } = require('../src/services/storedPlayback');
+  let touched = false;
+  const sources = await storedSources({ imdbId: 'tt1234567' }, { config: videoStorageConfig({}), repo: { findReadyVersions: async () => { touched = true; return []; } } });
+  assert.deepEqual(sources, []); assert.equal(touched, false);
+  for (const file of ['src/app.js', 'server.js']) {
     const text = await fs.readFile(path.join(__dirname, '..', file), 'utf8');
-    assert.equal(/videoStorage/.test(text), false, `${file} must not wire Telegram storage in Phase 1`);
+    assert.equal(/videoStorage|storedPlayback/.test(text), false, `${file} must not wire Telegram storage directly`);
   }
 });
 
