@@ -126,3 +126,20 @@ test('a failing or slow storage lookup falls back to providers instead of blocki
   assert.deepEqual(sources, []); assert.ok(Date.now() - started < 400);
   assert.equal(events[0].code, 'STORED_LOOKUP_TIMEOUT');
 });
+
+test('stored availability lists Ready titles, is empty when off, and never blocks on a slow database', async () => {
+  const express = require('express');
+  const { createStoredAvailableRouter } = require('../src/routes/storedAvailable');
+  const serve = async router => { const app = express(); app.use('/a', router); const s = http.createServer(app); await new Promise(r => s.listen(0, '127.0.0.1', r)); return s; };
+  const get = async s => (await fetch(`http://127.0.0.1:${s.address().port}/a`)).json();
+  let calls = 0;
+  const on = await serve(createStoredAvailableRouter({ config: () => ({ enabled: true }), query: async () => { calls++; return { rows: [{ imdb_id: 'tt0000001' }, { imdb_id: 'tt0000002' }] }; } }));
+  const off = await serve(createStoredAvailableRouter({ config: () => ({ enabled: false }), query: async () => { throw new Error('must not query'); } }));
+  const slow = await serve(createStoredAvailableRouter({ config: () => ({ enabled: true }), query: () => new Promise(() => {}) }));
+  try {
+    assert.deepEqual((await get(on)).data, ['tt0000001', 'tt0000002']);
+    await get(on); assert.equal(calls, 1, 'cached');
+    assert.deepEqual((await get(off)).data, []);
+    const t = Date.now(); assert.deepEqual((await get(slow)).data, []); assert.ok(Date.now() - t < 4500);
+  } finally { for (const s of [on, off, slow]) { s.closeAllConnections(); s.close(); } }
+});

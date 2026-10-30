@@ -23,6 +23,9 @@ export default function VideoPlayer({ source, onFailure, onProgress, onEnded, in
   const videoRef = useRef(null), shellRef = useRef(null), hlsRef = useRef(null)
   const callbacks = useRef({ onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration }), resume = useRef(initialTime), lastSent = useRef(0), speed = useRef(1)
   const volumeRef = useRef({ value: 1, muted: false }), dragRef = useRef(false), previewRef = useRef(null), seekTimer = useRef(null)
+  const lastPointer = useRef('mouse'), pendingTap = useRef(null), tapHintTimer = useRef(null)
+  const [tapHint, setTapHint] = useState(null), [showKeys, setShowKeys] = useState(false)
+  useEffect(() => () => { clearTimeout(pendingTap.current); clearTimeout(tapHintTimer.current) }, [])
   const [playbackSpeed,setPlaybackSpeed]=useState(1)
   const [view, setView] = useState(null), [draft, setDraft] = useState(null), [controlError, setControlError] = useState('')
   const [levels, setLevels] = useState([]), [quality, setQuality] = useState(-1), [audio, setAudio] = useState([]), [audioIndex, setAudioIndex] = useState(0), [captions, setCaptions] = useState(-1), [captionSize, setCaptionSize] = useState(20)
@@ -152,19 +155,46 @@ export default function VideoPlayer({ source, onFailure, onProgress, onEnded, in
     } catch { setControlError('Fullscreen is unavailable in this browser.') }
   }
   function keyboard(event) {
+    if (event.key === 'Escape' && showKeys) { event.preventDefault(); event.stopPropagation(); setShowKeys(false); return }
     if (event.key === 'Escape' && menu) { event.preventDefault(); event.stopPropagation(); onMenuChange?.(null); return }
     if (event.key === 'Escape' && document.fullscreenElement) { event.stopPropagation(); return }
     if (event.target.closest('button,input,select')) return
-    if ([' ', 'k', 'K'].includes(event.key)) { event.preventDefault(); togglePlay() }
-    else if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); seekTo(current.time + (event.key === 'ArrowRight' ? 10 : -10)) }
-    else if (event.key.toLowerCase() === 'f') { event.preventDefault(); fullscreen() }
-    else if (event.key.toLowerCase() === 'm') { event.preventDefault(); videoRef.current.muted = !videoRef.current.muted }
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+    if ([' ', 'k'].includes(key)) { event.preventDefault(); togglePlay() }
+    else if (['ArrowLeft', 'ArrowRight', 'j', 'l'].includes(key)) { event.preventDefault(); const step = key === 'ArrowRight' || key === 'l' ? 10 : -10; seekTo(current.time + step); flashSeek(step) }
+    else if (['ArrowUp', 'ArrowDown'].includes(key)) { event.preventDefault(); const video = videoRef.current; video.muted = false; video.volume = Math.max(0, Math.min(1, Math.round((video.volume + (key === 'ArrowUp' ? .1 : -.1)) * 10) / 10)) }
+    else if (key === 'f') { event.preventDefault(); fullscreen() }
+    else if (key === 'm') { event.preventDefault(); videoRef.current.muted = !videoRef.current.muted }
+    else if (key === '?') { event.preventDefault(); setShowKeys(value => !value) }
+  }
+  // Brief "-10 s" / "+10 s" mark on the side that was seeked.
+  function flashSeek(step) {
+    clearTimeout(tapHintTimer.current); setTapHint(step)
+    tapHintTimer.current = setTimeout(() => setTapHint(null), 650)
+  }
+  // Touch: a single tap waits briefly so a double tap can seek instead of pausing.
+  function surfaceTap(event) {
+    if (lastPointer.current !== 'touch') { if (touchReveal.current) { touchReveal.current = false; return } togglePlay(); return }
+    const rect = event.currentTarget.getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width
+    if (pendingTap.current) {
+      clearTimeout(pendingTap.current); pendingTap.current = null
+      if (x < .4 || x > .6) { const step = x > .6 ? 10 : -10; seekTo(current.time + step); flashSeek(step) } else fullscreen()
+      return
+    }
+    const reveal = touchReveal.current; touchReveal.current = false
+    pendingTap.current = setTimeout(() => { pendingTap.current = null; if (!reveal) togglePlay() }, 260)
   }
   return <div className="video-player integrated-player" ref={shellRef} onKeyDown={keyboard}>
     <div className="video-surface">
-      <video ref={videoRef} preload="auto" playsInline crossOrigin="anonymous" tabIndex={0} onPointerDown={event=>{touchReveal.current=event.pointerType==='touch'&&!controlsVisible}} onClick={()=>{if(touchReveal.current){touchReveal.current=false;return}togglePlay()}} onDoubleClick={fullscreen} style={{ '--caption-size': `${captionSize}px` }} aria-label="Video player">
+      <video ref={videoRef} preload="auto" playsInline crossOrigin="anonymous" tabIndex={0} onPointerDown={event=>{lastPointer.current=event.pointerType;touchReveal.current=event.pointerType==='touch'&&!controlsVisible}} onClick={surfaceTap} onDoubleClick={()=>{if(lastPointer.current!=='touch')fullscreen()}} style={{ '--caption-size': `${captionSize}px` }} aria-label="Video player">
         {(source.subtitles || []).map((track, index) => <track key={track.uri || index} kind="subtitles" src={track.uri} srcLang={track.language || 'und'} label={track.title || track.language || 'Subtitles'} />)}
       </video>
+      {tapHint !== null && <div className={`seek-hint seek-hint--${tapHint > 0 ? 'forward' : 'back'}`} aria-hidden="true">{tapHint > 0 ? '+10 s' : '−10 s'}</div>}
+      {showKeys && <div className="key-help" role="dialog" aria-label="Keyboard shortcuts">
+        <p className="key-help-title">Keyboard shortcuts</p>
+        <dl>{[['Space or K', 'Play or pause'], ['← or J', 'Back 10 seconds'], ['→ or L', 'Forward 10 seconds'], ['↑ ↓', 'Volume'], ['M', 'Mute'], ['F', 'Full screen'], ['?', 'Show or hide this list']].map(([k, v]) => <div key={k}><dt><kbd>{k}</kbd></dt><dd>{v}</dd></div>)}</dl>
+        <button type="button" className="button button--quiet" onClick={() => setShowKeys(false)}>Close</button>
+      </div>}
       {current.waiting && <div className="video-buffering" role="status" aria-label="Buffering video"><span className="playback-spinner" /><span>Loading video…</span></div>}
       <div className="video-controls" role="group" aria-label="Playback controls">
         <input className="video-timeline" aria-label="Movie timeline" aria-valuetext={`${clock(shownTime)} of ${clock(duration)}`} type="range" min="0" max={duration || 1} step=".1" disabled={!seekEnabled} value={Math.min(shownTime || 0, duration || 1)} style={{ '--played': `${duration ? Math.min(100, shownTime / duration * 100) : 0}%`, '--buffered': `${duration ? Math.min(100, current.buffered / duration * 100) : 0}%` }} onPointerDown={event => { dragRef.current = true; event.currentTarget.setPointerCapture?.(event.pointerId) }} onInput={event => preview(event.currentTarget.value)} onChange={event => preview(event.currentTarget.value)} onPointerUp={event => { dragRef.current = false; seekTo(Number(event.currentTarget.value)) }} onPointerCancel={() => { dragRef.current = false; previewRef.current = null; setDraft(null) }} onKeyUp={event => { if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key)) seekTo(Number(event.currentTarget.value)) }} onBlur={() => { if (previewRef.current !== null && !dragRef.current) seekTo(previewRef.current) }} />

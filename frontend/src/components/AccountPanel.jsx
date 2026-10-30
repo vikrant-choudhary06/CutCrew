@@ -10,7 +10,7 @@ export default function AccountPanel(){
   await lib.authenticate(mode,data.get('email'),data.get('password'))
  })}
  if(!lib.ready)return <><h2 id="panel-heading">Preparing your account</h2><p role="status">Checking your session…</p></>
- return <><span className="eyebrow">MAKE IT YOUR OWN</span><h2 id="panel-heading">{mode==='reset'?'Choose a new password':mode==='verify'?'Verify your email':lib.auth?'Your profiles':mode==='forgot'?'Reset your password':'Welcome to CutCrew'}</h2>
+ return <><h2 id="panel-heading">{mode==='reset'?'Choose a new password':mode==='verify'?'Verify your email':lib.auth?'Your profiles':mode==='forgot'?'Reset your password':'Welcome to CutCrew'}</h2>
  {mode==='verify'?<><p className="status-message">Confirm your email using the link you received.</p><button className="panel-action" disabled={busy} onClick={()=>run(async()=>{const body=await lib.api('/verify-email',{method:'POST',body:JSON.stringify({token:lib.accountAction?.token})});lib.setAccountAction(null);if(lib.auth)await lib.refreshAccount();setMode('login');setMessage(body.message)})}>Verify email</button><button className="text-action" onClick={()=>changeMode('login')}>Back to account</button></>:
  mode==='reset'||!lib.auth?<>
  <p className="status-message">{mode==='forgot'?'Enter your account email to request a reset link.':mode==='reset'?'Use a new password of at least 12 characters. Your existing sessions will be signed out.':'Keep watching across devices, or continue as a guest.'}</p>
@@ -23,9 +23,8 @@ export default function AccountPanel(){
  {mode==='login'&&<button className="text-action" disabled={busy} onClick={()=>changeMode('forgot')}>Forgot password?</button>}
  {['forgot','reset'].includes(mode)&&<button className="text-action" disabled={busy} onClick={()=>changeMode('login')}>Back to sign in</button>}
  </>:<>
- <p className="status-message">{lib.auth.user.email} · {lib.auth.user.emailVerified?'Email verified':'Email not verified'}</p>
+ <p className="status-message">Signed in as {lib.auth.user.email}{lib.auth.user.emailVerified?'':' (email not verified yet)'}</p>
  {!lib.auth.user.emailVerified&&<button className="panel-action" disabled={busy} onClick={()=>run(async()=>{setMessage((await lib.api('/send-verification',{method:'POST',body:'{}'})).message)})}>Send verification email</button>}
- <label className="account-field">Active profile<select disabled={busy} value={lib.profile} onChange={e=>lib.changeProfile(e.target.value)}>{lib.auth.profiles.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
  {lib.auth.profiles.length<5&&<form onSubmit={async e=>{e.preventDefault();if(await run(()=>lib.createProfile(name)))setName('')}}><label className="account-field">New profile<input required maxLength={40} value={name} onChange={e=>setName(e.target.value)} placeholder="Profile name"/></label><button className="panel-action" disabled={busy}>Create profile</button></form>}
  <div className="account-actions"><button className="panel-action" disabled={busy} onClick={()=>run(async()=>{await lib.importDevice();setMessage('Device library imported.')})}>Import this device’s library</button><button className="panel-action" disabled={busy} onClick={()=>run(lib.logout)}>Sign out</button></div><p className="status-message">Each profile has its own watchlist and viewing progress.</p>
  </>}

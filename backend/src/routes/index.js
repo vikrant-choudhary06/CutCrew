@@ -16,6 +16,7 @@ router.use('/logs', require('./logs'));
 router.get('/media', require('../services/mediaService').relay);
 router.get('/media/info', require('../services/mediaInfo'));
 router.use('/stored-media', require('./storedMedia')); // Telegram storage gateway; 404 while disabled
+router.use('/stored/available', require('./storedAvailable')); // titles with a Ready stored copy ("Instant")
 router.use('/movies/play', require('./playMovie')); // Added before general /movies endpoints
 router.use('/movies', require('./getAllMovies'));
 router.use('/movies', require('./getMovieById')); // This will match GET /movies/:imdb_id
