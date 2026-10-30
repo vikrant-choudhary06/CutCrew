@@ -1,4 +1,4 @@
-// HTTP gateway for Telegram-stored videos (telegramintegration.md, Phase 3).
+// HTTP gateway for Telegram-stored videos (telegramintegration.md, Phase 3/5).
 //   GET|HEAD /api/stored-media/:ticket
 // Serves one Ready asset as a single MP4 with standard byte ranges. Returns
 // 404 for everything while TELEGRAM_STORAGE_ENABLED is off.
@@ -7,38 +7,15 @@ const { videoStorageConfig } = require('../config/videoStorage');
 const tickets = require('../services/storedMediaTicket');
 const { parseRange } = require('../services/storedStream');
 
-const ASSET_TTL_MS = 30000;
-
-// Real dependencies, created on first use so a disabled server never connects to Telegram.
+// Real dependencies: the shared per-process runtime (one Telegram connection
+// and cache), created on first use so a disabled server never connects.
 function defaultDeps() {
-  let streamer, assets = new Map();
+  const runtime = require('../services/storedMediaRuntime');
   return {
     config: () => videoStorageConfig(),
-    streamer: () => {
-      if (streamer) return streamer;
-      const config = videoStorageConfig();
-      const { createTelegramAdapter } = require('../services/videoStorageAdapter');
-      const { BlockCache } = require('../services/streamCache');
-      const { StoredStreamer } = require('../services/storedStream');
-      const repo = require('../services/videoStorageRepository');
-      streamer = new StoredStreamer({
-        adapter: createTelegramAdapter(config.telegram, { downloadSessions: config.downloadSessions, downloadInflight: config.downloadInflight }),
-        cache: new BlockCache({ dir: config.cacheDir, maxBytes: config.cacheMaxBytes }),
-        fetchConcurrency: config.fetchConcurrency,
-        prefetchBytes: config.prefetchBytes,
-        // Only a confirmed missing Telegram message takes the asset out of playback.
-        onPartMissing: part => repo.markPartMissing(part.assetId, part.partNumber).then(() => assets.delete(part.assetId)),
-      });
-      return streamer;
-    },
-    // Ready assets are immutable; a short cache avoids a database round trip per range request.
-    asset: async id => {
-      const hit = assets.get(id);
-      if (hit && Date.now() - hit.at < ASSET_TTL_MS) return hit.asset;
-      const asset = await require('../services/videoStorageRepository').getAsset(id);
-      assets.set(id, { asset, at: Date.now() });
-      return asset;
-    },
+    streamer: () => runtime.getStreamer(),
+    asset: id => runtime.getAsset(id),
+    metrics: require('../services/storedMetrics'),
   };
 }
 
@@ -70,13 +47,22 @@ function createStoredMediaRouter(deps = defaultDeps()) {
     res.set('Content-Length', String(end - start + 1));
     if (req.method === 'HEAD') return res.end();
 
+    // Monitoring: time to first byte, bytes delivered, outcome.
+    const began = Date.now();
+    let firstByteMs = null, sent = 0;
+    const write = res.write.bind(res);
+    res.write = (chunk, ...rest) => { if (firstByteMs === null) firstByteMs = Date.now() - began; sent += chunk.length; return write(chunk, ...rest); };
+    const record = (outcome, code) => deps.metrics?.recordRequest({ assetId, start, end, firstByteMs, bytes: sent, ms: Date.now() - began, outcome, code });
+
     const controller = new AbortController();
     res.on('close', () => { if (!res.writableEnded) controller.abort(); });
     try {
       await deps.streamer().streamRange(asset, start, end, res, controller.signal);
       res.end();
+      record('ok');
     } catch (error) {
-      if (controller.signal.aborted) return; // viewer left; nothing to report
+      if (controller.signal.aborted) { record('aborted'); return; } // viewer left or seeked away
+      record('error', error.code || 'STREAM_FAILED');
       // Headers are already out, so the only safe signal is a broken connection.
       res.destroy(error);
     }

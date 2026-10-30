@@ -8,7 +8,8 @@ const path = require('node:path');
 const repo = require('./videoStorageRepository');
 const prep = require('./videoPrepare');
 const { splitFile, hashFile, partFileName } = require('./videoSplit');
-const { buildCaption, assertStorageAdapter, MAX_READ_BYTES } = require('./videoStorageAdapter');
+const { buildCaption, assertStorageAdapter } = require('./videoStorageAdapter');
+const { readOrdered } = require('./storageRead');
 const { safeFailure } = require('./telegramStorage');
 
 const STAGE_STATE = { validate: 'validating', prepare: 'preparing', upload: 'uploading', verify: 'verifying', publish: 'verifying' };
@@ -202,15 +203,13 @@ async function runJob(job, ctx) {
         const bad = [];
         for (const part of parts) {
           checkLease();
-          const ref = { chatId: part.telegramChatId, messageId: part.telegramMessageId, documentId: part.mtprotoDocumentId, size: part.size };
           const hash = createHash('sha256');
           let ok = true;
           try {
-            for (let offset = 0; offset < part.size; offset += MAX_READ_BYTES) {
-              const length = Math.min(MAX_READ_BYTES, part.size - offset);
-              const bytes = await adapter.readRange(ref, offset, length, { signal });
-              if (bytes.length !== length) throw new ImportError('TRUNCATED_READ', { retryable: true });
+            // Ordered parallel 1 MiB reads: several requests in flight, bytes hashed in order.
+            for await (const bytes of readOrdered(adapter, part, { concurrency: ctx.verifyConcurrency ?? 8, signal })) {
               hash.update(bytes); whole.update(bytes);
+              progress.verifiedBytes = (progress.verifiedBytes || 0) + bytes.length;
             }
           } catch (error) {
             if (!['UPLOADED_MESSAGE_NOT_ACCESSIBLE', 'REFERENCED_FILE_CHANGED'].includes(error?.code)) throw error;

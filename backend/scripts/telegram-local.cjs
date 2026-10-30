@@ -26,12 +26,14 @@ const linuxPath = value => '/mnt/' + value[0].toLowerCase() + value.slice(2).rep
 // Server data must live on the Linux filesystem: its database renames files,
 // which fails on the Windows/OneDrive mount (and OneDrive would sync the
 // session data, whose folder is named after the bot token, to the cloud).
+// Upload temp files stay on disk too: WSL's default /tmp is a small RAM disk,
+// and multi-GB parts uploading in parallel broke connections there.
 const dataDir = process.env.TELEGRAM_LOCAL_DATA_DIR || '~/.local/share/cutcrew-telegram-bot-api';
 if (!/^(~|\/home\/[a-z_][a-z0-9_-]*|\/var\/lib)(\/[\w.-]+)+$/.test(dataDir)) {
   console.log(JSON.stringify({status:'failed',code:'TELEGRAM_LOCAL_DATA_DIR_INVALID'}));
   process.exit(2);
 }
-const program = 'import sys,json,os\np=json.loads(sys.stdin.readline())\nos.umask(0o077)\nw=os.path.expanduser(p["work"])\nos.makedirs(w,exist_ok=True)\nos.chdir(w)\ne=os.environ.copy()\ne["TELEGRAM_API_ID"]=p["id"]\ne["TELEGRAM_API_HASH"]=p["hash"]\nos.execve(p["binary"],[p["binary"],"--local","--dir="+w,"--http-ip-address=127.0.0.1","--http-port=8081","--verbosity=0"],e)';
+const program = 'import sys,json,os\np=json.loads(sys.stdin.readline())\nos.umask(0o077)\nw=os.path.expanduser(p["work"])\nos.makedirs(w,exist_ok=True)\nos.makedirs(w+"/tmp",exist_ok=True)\nos.chdir(w)\ne=os.environ.copy()\ne["TELEGRAM_API_ID"]=p["id"]\ne["TELEGRAM_API_HASH"]=p["hash"]\nos.execve(p["binary"],[p["binary"],"--local","--dir="+w,"--temp-dir="+w+"/tmp","--http-ip-address=127.0.0.1","--http-port=8081","--verbosity=0"],e)';
 const child = spawn('wsl.exe',['-d','Ubuntu','--','python3','-c',program],{stdio:['pipe',log,log],windowsHide:true});
 child.on('error',()=>{console.log(JSON.stringify({status:'failed',code:'LOCAL_SERVER_LAUNCH_FAILED'}));process.exitCode=1;});
 child.stdin.on('error',()=>{});

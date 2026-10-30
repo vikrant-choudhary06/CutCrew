@@ -25,6 +25,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/admin/tools', require('./middlewares/adminAuth'), (_req,res)=>res.sendFile(path.join(__dirname,'views/admin-tools.html')));
+app.get('/admin/storage', require('./middlewares/adminAuth'), (_req,res)=>res.sendFile(path.join(__dirname,'views/admin-storage.html')));
 app.get('/admin', require('./middlewares/adminAuth'), (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -50,7 +51,7 @@ app.get('/admin', require('./middlewares/adminAuth'), (req, res) => {
     </head>
     <body>
       <div class="container">
-        <h1>Admin Dashboard</h1><p><a href="/admin/tools" style="color:#4fc1ff">Catalogue and provider health →</a></p>
+        <h1>Admin Dashboard</h1><p><a href="/admin/tools" style="color:#4fc1ff">Catalogue and provider health →</a> &nbsp; <a href="/admin/storage" style="color:#4fc1ff">Telegram video storage →</a></p>
         <div class="stats">
           <div class="card">
             <h3>Registered Users</h3>

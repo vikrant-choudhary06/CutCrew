@@ -10,6 +10,7 @@ router.use('/movies/trending', require('./getTrendingMovies'));
 router.use('/series/trending', require('./getTrendingSeries'));
 router.use('/movies/search', require('./searchMovies'));
 router.use('/movies/scrape', require('./scrapeMovie'));
+router.use('/admin/storage', require('../middlewares/adminAuth'), require('./adminStorage')); // Telegram storage admin
 router.use('/admin', require('./admin'));
 router.use('/logs', require('./logs'));
 router.get('/media', require('../services/mediaService').relay);

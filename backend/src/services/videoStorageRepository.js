@@ -422,6 +422,63 @@ async function listAssets({ limit = 50 } = {}) {
   return (await db.query('SELECT * FROM video_assets ORDER BY created_at DESC LIMIT $1', [Math.min(500, Math.max(1, limit))])).rows.map(mapAsset);
 }
 
+// ---------- administration (Phase 5) ----------
+
+// Assets with their latest job, newest first, optionally filtered.
+async function listAssetsWithJobs({ state, q, limit = 100 } = {}) {
+  const params = [], where = [];
+  if (state) { params.push(state); where.push(`a.state = $${params.length}`); }
+  if (q) { params.push(`%${String(q).slice(0, 100)}%`); where.push(`(a.imdb_id ILIKE $${params.length} OR a.title ILIKE $${params.length})`); }
+  params.push(Math.min(500, Math.max(1, limit)));
+  const rows = (await db.query(
+    `SELECT a.*, j.id AS job_id, j.stage AS job_stage, j.status AS job_status, j.attempts AS job_attempts, j.max_attempts AS job_max_attempts,
+       j.next_run_at AS job_next_run_at, j.error_category AS job_error_category
+     FROM video_assets a
+     LEFT JOIN LATERAL (SELECT * FROM video_import_jobs WHERE asset_id = a.id ORDER BY created_at DESC LIMIT 1) j ON true
+     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+     ORDER BY a.created_at DESC LIMIT $${params.length}`, params)).rows;
+  return rows.map(row => ({ ...mapAsset(row), job: row.job_id ? { id: row.job_id, stage: row.job_stage, status: row.job_status,
+    attempts: int(row.job_attempts), maxAttempts: int(row.job_max_attempts), nextRunAt: row.job_next_run_at, errorCategory: row.job_error_category } : null }));
+}
+
+async function storageCounts() {
+  const assets = (await db.query('SELECT state, count(*) AS n FROM video_assets GROUP BY state')).rows;
+  const jobs = (await db.query('SELECT status, count(*) AS n FROM video_import_jobs GROUP BY status')).rows;
+  const bytes = (await db.query("SELECT COALESCE(sum(total_size), 0) AS b FROM video_assets WHERE state = 'ready'")).rows[0];
+  return { assets: Object.fromEntries(assets.map(r => [r.state, int(r.n)])), jobs: Object.fromEntries(jobs.map(r => [r.status, int(r.n)])), readyBytes: int(bytes.b) };
+}
+
+async function touchValidated(assetId) {
+  await db.query('UPDATE video_assets SET last_validated_at = now() WHERE id = $1', [assetId]);
+}
+
+// A part confirmed present and correct again (only while the asset is unavailable).
+async function markPartReverified(assetId, partNumber) {
+  const result = await db.query(
+    "UPDATE video_parts SET state = 'verified', verified_at = now() WHERE asset_id = $1 AND part_number = $2 AND state = 'missing' RETURNING *",
+    [assetId, partNumber]);
+  if (!result.rows.length) fail('STATE_CONFLICT', 'part is not missing');
+  return mapPart(result.rows[0]);
+}
+
+// Puts a failed (or stuck) import back in the queue with fresh attempts.
+async function retryJob(assetId) {
+  const result = await db.query(
+    `UPDATE video_import_jobs SET status = 'queued', attempts = 0, next_run_at = now(), lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+     WHERE id = (SELECT id FROM video_import_jobs WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 1) AND status IN ('failed','queued')
+       AND EXISTS (SELECT 1 FROM video_assets WHERE id = $1 AND state NOT IN ('ready','unavailable','superseded')) RETURNING *`,
+    [assetId]);
+  if (!result.rows.length) fail('STATE_CONFLICT', 'no failed or queued import job for this asset');
+  return mapJob(result.rows[0]);
+}
+
+// Assets due for a background check: ready, oldest check first.
+async function assetsDueForValidation({ olderThanMs = 24 * 3600 * 1000, limit = 5 } = {}) {
+  return (await db.query(
+    `SELECT * FROM video_assets WHERE state = 'ready' AND (last_validated_at IS NULL OR last_validated_at < now() - ($1::int * interval '1 millisecond'))
+     ORDER BY last_validated_at NULLS FIRST LIMIT $2`, [Math.min(olderThanMs, 2147483647), limit])).rows.map(mapAsset);
+}
+
 async function getJob(jobId) {
   return mapJob((await db.query('SELECT * FROM video_import_jobs WHERE id = $1', [jobId])).rows[0]);
 }
@@ -431,4 +488,5 @@ module.exports = {
   createImport, getAsset, listParts, transitionAsset, recordPreparedFile, recordPartUpload, markPartVerified,
   refreshPartReference, publishReady, setDefault, markPartMissing, findReadyVersions, findReadyAsset,
   claimJob, heartbeatJob, advanceJob, completeJob, failJob, getJob, maxMessageId, resetPartForReupload, getActiveJobForAsset, listAssets,
+  listAssetsWithJobs, storageCounts, touchValidated, markPartReverified, retryJob, assetsDueForValidation,
 };

@@ -41,6 +41,20 @@ const startCronJobs = () => {
       console.error('Error in daily cron job:', error.message);
     }
   });
+  // Telegram storage (Phase 5): every 6 hours, confirm the Telegram messages of
+  // up to 5 Ready videos not checked in 24 hours still exist. Lookup only (no
+  // video download); only a confirmed missing part leaves playback.
+  cron.schedule('17 */6 * * *', async () => {
+    const config = require('../config/videoStorage').videoStorageConfig();
+    if (!config.enabled) return;
+    try {
+      const adapter = require('../services/storedMediaRuntime').getAdapter(config);
+      const result = await require('../services/storageMaintenance').revalidateDue({ adapter, limit: 5, mode: 'lookup' });
+      if (result.checked) console.log(`Stored video check: ${result.checked} checked, ${result.problems.length} with problems`);
+    } catch (error) {
+      console.error('Stored video check failed:', error.code || error.message);
+    }
+  });
   console.log('Cron jobs initialized.');
 };
 

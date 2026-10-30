@@ -6,6 +6,9 @@
 //        [--episode-year 2024] [--allow-transcode] [--decode sample] [--default] [--keep-artifacts] [--key <id>]
 //   npm run video:import -- resume        Process any queued/interrupted imports
 //   npm run video:import -- status [id]   List recent imports, or one asset with its parts
+//   npm run video:import -- verify <id> [--deep]   Check every part in Telegram (--deep re-reads all bytes)
+//   npm run video:import -- restore <id>  Put an unavailable asset back once its parts check out
+//   npm run video:import -- retry <id>    Requeue a failed import, then run resume
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -31,7 +34,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (!arg.startsWith('--')) { positional.push(arg); continue; }
     const name = arg.slice(2);
-    if (['allow-transcode', 'default', 'keep-artifacts'].includes(name)) flags[name] = true;
+    if (['allow-transcode', 'default', 'keep-artifacts', 'deep'].includes(name)) flags[name] = true;
     else { const value = argv[++i]; if (value === undefined) throw new Error(`--${name} needs a value`); flags[name] = value; }
   }
   return { flags, positional };
@@ -50,7 +53,9 @@ function workerContext() {
   }
   return {
     workerId: `${os.hostname().slice(0, 40)}-${process.pid}-${randomUUID().slice(0, 8)}`,
-    adapter: createTelegramAdapter(telegram),
+    // Parallel download connections make read-back verification of large parts practical.
+    adapter: createTelegramAdapter(telegram, { downloadSessions: settings.downloadSessions, downloadInflight: settings.downloadInflight }),
+    verifyConcurrency: settings.fetchConcurrency,
     chatId: telegram.channelId,
     partSize: settings.partSize,
     uploadConcurrency: settings.uploadConcurrency,
@@ -100,6 +105,20 @@ async function resumeCommand() {
   } finally { await ctx.adapter.close(); }
 }
 
+async function maintenanceCommand(command, id, flags) {
+  if (!/^[0-9a-f-]{36}$/.test(id || '')) throw new Error('Give the asset (Upload) ID from status');
+  const { verifyAsset, restoreAsset } = require('../src/services/storageMaintenance');
+  const ctx = workerContext();
+  try {
+    const mode = flags.deep ? 'deep' : 'quick';
+    const result = command === 'verify'
+      ? await verifyAsset(id, { adapter: ctx.adapter, mode, concurrency: ctx.verifyConcurrency, log: e => out(e) })
+      : await restoreAsset(id, { adapter: ctx.adapter, mode, concurrency: ctx.verifyConcurrency });
+    out({ event: command + '-result', ...result });
+    if (!result.ok) process.exitCode = 2;
+  } finally { await ctx.adapter.close(); }
+}
+
 async function statusCommand(id) {
   if (id) {
     const asset = await repo.getAsset(id);
@@ -127,7 +146,9 @@ async function statusCommand(id) {
     if (command === 'import') await importCommand(flags);
     else if (command === 'resume') await resumeCommand();
     else if (command === 'status') await statusCommand(positional[0]);
-    else throw new Error('Use import, resume or status');
+    else if (command === 'verify' || command === 'restore') await maintenanceCommand(command, positional[0], flags);
+    else if (command === 'retry') { const job = await repo.retryJob(positional[0]); out({ event: 'requeued', jobStatus: job.status, next: 'npm run video:import -- resume' }); }
+    else throw new Error('Use import, resume, status, verify, restore or retry');
   } finally { await db.close(); }
 })().catch(error => {
   // Only codes and names: never raw messages that could include secrets.
