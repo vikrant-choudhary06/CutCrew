@@ -26,7 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY --from=build /src/build/telegram-bot-api /usr/local/bin/telegram-bot-api
 COPY deploy/telegram-bot-api/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 755 /usr/local/bin/entrypoint.sh
-USER telegram
+# Starts as root only to read the mounted secret (backend/.env stays mode 600
+# on the host); the entrypoint then drops to the unprivileged telegram user.
 WORKDIR /var/lib/telegram-bot-api
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD ["bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8081"]

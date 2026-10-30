@@ -17,7 +17,14 @@ if [ -z "$TELEGRAM_API_ID" ] || [ -z "$TELEGRAM_API_HASH" ]; then
 fi
 export TELEGRAM_API_ID TELEGRAM_API_HASH
 mkdir -p /var/lib/telegram-bot-api/tmp
-exec /usr/local/bin/telegram-bot-api --local \
+# Data volume belongs to the service user; the server itself never runs as root.
+if [ "$(id -u)" = 0 ]; then
+  chown -R telegram:telegram /var/lib/telegram-bot-api
+  set -- setpriv --reuid=telegram --regid=telegram --init-groups --inh-caps=-all --bounding-set=-all
+else
+  set --
+fi
+exec "$@" /usr/local/bin/telegram-bot-api --local \
   --dir=/var/lib/telegram-bot-api \
   --temp-dir=/var/lib/telegram-bot-api/tmp \
   --http-ip-address=0.0.0.0 --http-port=8081 \
