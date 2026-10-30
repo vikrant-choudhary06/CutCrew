@@ -34,8 +34,9 @@ function configuration(env = process.env) {
   let url;
   try {
     url = new URL(env.TELEGRAM_BOT_API_URL || 'http://127.0.0.1:8081');
-    // Phase 0 deliberately uses a loopback-only Bot API. No token-bearing redirects.
-    if (url.protocol !== 'http:' || !['127.0.0.1','localhost','[::1]'].includes(url.hostname) ||
+    // The Bot API sees the bot token, so it must be on this machine: loopback, or the
+    // `telegram-bot-api` service on the private Docker Compose network (never published).
+    if (url.protocol !== 'http:' || !['127.0.0.1','localhost','[::1]','telegram-bot-api'].includes(url.hostname) ||
         url.username || url.password || url.search || url.hash || url.pathname !== '/') throw new Error();
   } catch { errors.push('TELEGRAM_BOT_API_URL'); }
   const sessionPath = path.resolve(ROOT, env.TELEGRAM_SESSION_PATH || '.local/telegram/bot.session');

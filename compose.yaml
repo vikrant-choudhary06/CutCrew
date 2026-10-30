@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    ports: ["127.0.0.1:8080:80"]
+    ports: ["127.0.0.1:${FRONTEND_PORT:-8080}:80"]
     depends_on:
       backend:
         condition: service_healthy
@@ -18,13 +18,45 @@ services:
       PORT: 5000
       SCRAPER_URL: http://imdbapi:8000
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
+      # Talks to the Telegram server below over the private Compose network.
+      TELEGRAM_BOT_API_URL: http://telegram-bot-api:8081
+    volumes:
+      # Telegram session, video cache and import files survive rebuilds.
+      - backend-data:/app/backend/.local
     depends_on:
       imdbapi:
         condition: service_healthy
+      # Started together with the backend. The site still works if it is down;
+      # stored videos then fall back to the normal sources.
+      telegram-bot-api:
+        condition: service_started
     restart: unless-stopped
     stop_grace_period: 30s
+  telegram-bot-api:
+    build:
+      context: .
+      dockerfile: deploy/telegram-bot-api/Dockerfile
+      args:
+        BUILD_JOBS: ${TELEGRAM_BUILD_JOBS:-2}
+    # Reads only TELEGRAM_API_ID and TELEGRAM_API_HASH from this file.
+    secrets: [backend_env]
+    volumes:
+      - telegram-bot-data:/var/lib/telegram-bot-api
+    # No ports: reachable only by the backend, never from the internet.
+    restart: unless-stopped
+    stop_grace_period: 20s
+    logging:
+      options: { max-size: 10m, max-file: "3" }
   imdbapi:
     build:
       context: .
       dockerfile: IMDBAPI/Dockerfile
     restart: unless-stopped
+
+secrets:
+  backend_env:
+    file: backend/.env
+
+volumes:
+  backend-data:
+  telegram-bot-data:

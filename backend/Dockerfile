@@ -13,7 +13,7 @@ RUN npm ci --omit=dev
 COPY --chown=node:node backend/ ./
 COPY --from=providers /build/provider/dist /app/provider/dist
 COPY provider/provider-policy.json /app/provider/provider-policy.json
-RUN chown -R node:node /app/backend
+RUN mkdir -p /app/backend/.local && chown -R node:node /app/backend
 ENV NODE_ENV=production PORT=5000
 USER node
 EXPOSE 5000

@@ -8,6 +8,8 @@ const env={TELEGRAM_BOT_TOKEN:'123456789:'+ 'x'.repeat(35),TELEGRAM_API_ID:'1234
 test('configuration reports only missing/invalid names and refuses remote token-bearing Bot API endpoints',()=>{
  assert.equal(poc.configuration({}).ready,false);assert.equal(poc.configuration(env).ready,true);
  for(const url of ['https://api.telegram.org','http://evil.example','http://127.0.0.1:8081/?token=secret','http://user:pass@localhost:8081'])assert.ok(poc.configuration({...env,TELEGRAM_BOT_API_URL:url}).errors.includes('TELEGRAM_BOT_API_URL'));
+ for(const url of ['http://telegram-bot-api.evil.example:8081','http://telegram-bot-api:8081/x','https://telegram-bot-api:8081'])assert.ok(poc.configuration({...env,TELEGRAM_BOT_API_URL:url}).errors.includes('TELEGRAM_BOT_API_URL'));
+ assert.equal(poc.configuration({...env,TELEGRAM_BOT_API_URL:'http://telegram-bot-api:8081'}).baseUrl,'http://telegram-bot-api:8081');
  assert.ok(poc.configuration({...env,TELEGRAM_SESSION_PATH:'../outside.session'}).errors.includes('TELEGRAM_SESSION_PATH'));
  assert.equal(JSON.stringify(poc.safeFailure(new Error(env.TELEGRAM_BOT_TOKEN))).includes(env.TELEGRAM_BOT_TOKEN),false);
  assert.deepEqual(poc.safeFailure(new poc.Phase0Error('SAFE',{token:env.TELEGRAM_BOT_TOKEN,status:429})),{code:'SAFE',status:429});
