@@ -7,7 +7,7 @@
 Browse what's trending, find any title in seconds, and press play —
 on the web, your Android phone or TV, and Windows.
 
-[**Website**](https://cutcrew.vikrant.sbs) · [**Download the apps**](https://github.com/vikrant-choudhary06/CutCrew/releases/latest)
+[**Website**](https://webcutcrew.vikrant.sbs) · [**Download the apps**](https://github.com/vikrant-choudhary06/CutCrew/releases/latest)
 
 </div>
 
@@ -47,7 +47,7 @@ it, and it plays — with your progress remembered, so you can pick up where you
 ### Everywhere
 | Platform | |
 |---|---|
-| 🌐 **Web** | [cutcrew.vikrant.sbs](https://cutcrew.vikrant.sbs) — any modern browser, phone or desktop |
+| 🌐 **Web** | [webcutcrew.vikrant.sbs](https://webcutcrew.vikrant.sbs) — any modern browser, phone or desktop |
 | 🤖 **Android** | Phones and tablets, with layouts made for each |
 | 📺 **Android TV** | Works with the remote, and shows up in the TV launcher |
 | 🪟 **Windows** | A lightweight desktop app (about 1 MB to download) |

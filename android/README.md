@@ -1,6 +1,6 @@
 # CutCrew for Android (phones, tablets, TV)
 
-Expo SDK 58 / React Native 0.88 app that talks to `https://cutcrew.vikrant.sbs`.
+Expo SDK 58 / React Native 0.88 app that talks to `https://webcutcrew.vikrant.sbs`.
 One APK installs on phones, tablets and Android TV (TV launcher + banner via
 `plugins/withAndroidTv.js`).
 
