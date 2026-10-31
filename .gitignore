@@ -1,0 +1,15 @@
+# Local tools and notes (kept on this computer, not on GitHub)
+.claude/
+reports/
+telegramintegration.md
+reliable.md
+seedMovie.js
+
+# App downloads are published as GitHub releases, not committed
+download/
+
+# Secrets and dependencies
+.env
+.env.*
+!.env.example
+node_modules/
