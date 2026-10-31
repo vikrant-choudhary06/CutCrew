@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "CutCrew",
+    "slug": "cutcrew",
+    "scheme": "cutcrew",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0f1320",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sbs.vikrant.cutcrew"
+    },
+    "android": {
+      "package": "sbs.vikrant.cutcrew",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0f1320",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#0f1320"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      "expo-image",
+      "expo-font",
+      "./plugins/withAndroidTv"
+    ]
+  }
+}
