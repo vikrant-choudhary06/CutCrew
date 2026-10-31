@@ -39,6 +39,10 @@ export default function Watch() {
   const error = fatal.key === requestKey ? fatal.message : answer.key === requestKey ? answer.error : '';
   const status: 'loading' | 'ready' | 'error' = error ? 'error' : played.key === sourceKey && played.ready ? 'ready' : 'loading';
   const [showNext, setShowNext] = useState(false);
+  // A stored (Telegram) copy gets one retry from the same spot before the
+  // player falls back to providers: a slow block shouldn't lose the stored copy.
+  const [reload, setReload] = useState(0);
+  const retried = useRef(new Set<string>());
   const [chrome, setChrome] = useState(true);
 
   // Where to start: this episode's saved position, unless it was finished.
@@ -85,10 +89,11 @@ export default function Watch() {
     player.replaceAsync({ uri, contentType: source.type === 'hls' ? 'hls' : 'progressive', metadata: { title: title?.title } })
       .then(() => { if (!remuxed && start > 0) player.currentTime = start; player.play(); })
       .catch(() => fail());
-  }, [source]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [source, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function fail() {
     offset.current = position();
+    if (source?.stored && !retried.current.has(sourceKey)) { retried.current.add(sourceKey); setReload(n => n + 1); return; }
     if (streams && index + 1 < streams.list.length) { setPick({ key: requestKey, index: index + 1 }); return; }
     if (streams?.provider === STORAGE) { setRequest(r => ({ exclude: [...r.exclude, STORAGE], refresh: false, serial: r.serial + 1 })); return; }
     if (!request.refresh) { setRequest(r => ({ ...r, refresh: true, serial: r.serial + 1 })); return; }
@@ -115,8 +120,12 @@ export default function Watch() {
     if (now - st.lastReport > 15000 && source) { st.lastReport = now; report(source, st.played); }
   });
 
+  // ExoPlayer also reports "ended" for an empty player (before a source is
+  // loaded). Only a source that really played to its last seconds counts.
   useEventListener(player, 'playToEnd', () => {
-    if (title) lib.saveProgress({ data: title, season, episode, position: position(), duration: player.duration || null, completed: true });
+    const duration = player.duration || 0;
+    if (!source || status !== 'ready' || stats.current.played < 20 || !(duration > 0) || (player.currentTime || 0) < duration - 10) return;
+    if (title) lib.saveProgress({ data: title, season, episode, position: position(), duration, completed: true });
     goNext();
   });
 
@@ -158,7 +167,7 @@ export default function Watch() {
           </Focusable>
           <View style={{ flex: 1 }}>
             <Text style={w.title} numberOfLines={1}>{title?.title || ''}</Text>
-            {!!season && <Text style={w.sub}>Season {season} · Episode {episode}</Text>}
+            {!!season && <Text style={[w.sub, { textAlign: 'left' }]}>Season {season} · Episode {episode}</Text>}
           </View>
         </View>
       )}

@@ -18,7 +18,8 @@ export default function TabsLayout() {
       headerShown: false,
       // TV: tabs sit at the top, where the remote reaches them first.
       tabBarPosition: tv ? 'top' : 'bottom',
-      tabBarStyle: { backgroundColor: 'rgba(15,19,32,0.98)', borderTopColor: C.line, height: tv ? 64 : undefined },
+      // No fixed height on phones: the navigator adds the gesture-bar inset itself.
+      tabBarStyle: { backgroundColor: 'rgba(15,19,32,0.98)', borderTopColor: C.line, ...(tv ? { height: 64 } : {}) },
       tabBarActiveTintColor: C.marigold,
       tabBarInactiveTintColor: C.dust,
       tabBarLabelStyle: { fontFamily: F.semibold, fontSize: tv ? 15 : 12 },

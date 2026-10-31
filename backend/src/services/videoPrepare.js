@@ -183,7 +183,9 @@ async function prepare(source, workDir, { allowTranscode = false, declaredLangua
     const args = ['-hide_banner', '-nostdin', '-nostats', '-v', 'error', '-y', '-i', source, '-map', '0:v:0', '-map', '0:a?', '-sn', '-dn',
       '-map_metadata', '-1', '-map_chapters', '-1',
       ...(plan.transcodeVideo ? ['-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p'] : ['-c:v', 'copy']),
-      ...(plan.transcodeAudio ? ['-c:a', 'aac', '-b:a', '192k'] : ['-c:a', 'copy']),
+      // Converted audio is stereo: 5.1 AAC made from AC3/EAC3 can carry an
+      // unknown channel layout that Android's AAC decoder rejects.
+      ...(plan.transcodeAudio ? ['-c:a', 'aac', '-ac', '2', '-b:a', '192k'] : ['-c:a', 'copy']),
       '-movflags', '+faststart', '-f', 'mp4', temp];
     const result = await run(FFMPEG(), args, { timeoutMs: Math.max(1800000, Math.ceil(info.durationSeconds * 1000 * (plan.transcodeVideo ? 6 : 1))), signal });
     if (result.code !== 0) { await fs.rm(temp, { force: true }); throw new PrepareError('PREPARE_FAILED', { retryable: true }); }
