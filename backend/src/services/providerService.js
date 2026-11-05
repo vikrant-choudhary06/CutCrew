@@ -14,17 +14,56 @@ function bounded(work, timeoutMs = 15000) {
     .finally(() => { clearTimeout(timer); controller.abort(); });
 }
 const text = value => String(value || '').toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
+// Provider listings wrap the real title in release details ("Download Jawan –
+// Netflix (2023) Hindi 1080p", "⭐ 8.4 Hindi, Dual Audio Inception 4K"). These
+// helpers recover the title so it can be compared exactly with the catalogue.
+const LEADING_NOISE = /^(?:download|watch|free|full|hindi|english|tamil|telugu|malayalam|kannada|punjabi|bengali|marathi|dual|multi|triple|audio|org|4k|uhd|hd|web-?dl|webrip|bluray|\d{3,4}p|[,&+|:\-–—])\s*/i;
+const TITLE_END = /\s(?:\(|\[|\{|\||[-–—]\s|(?:19|20)\d{2}\b|\d{3,4}p\b|4k\b|uhd\b|season\b|s\d{1,2}(?:e\d{1,3})?\b|episode\b|complete\b|dual\s+audio\b|multi\s+audio\b|hindi\b|english\b|bluray\b|blu-ray\b|web-?dl\b|webrip\b|hdrip\b|brrip\b|hdtc\b|full\s+movie\b|download\b|imax\b)/i;
+const SERIES_MARKER = /\b(?:season\s*\d+|s\d{1,2}(?:e\d{1,3})?|episodes?|complete\s+series|web\s+series|all\s+episodes)\b/i;
+function titleVariants(raw) {
+  let value = String(raw || '').replace(/⭐\s*[\d.]+/g, ' ').replace(/\s+/g, ' ').trim();
+  for (let i = 0; i < 12 && LEADING_NOISE.test(value); i++) value = value.replace(LEADING_NOISE, '').trim();
+  const padded = ' ' + value + ' ';
+  // Whole title up to a bracket or pipe (keeps "Blade Runner 2049", "Mission: Impossible – …").
+  const bracketCut = padded.split(/\s(?:\(|\[|\{|\|)/)[0].trim();
+  const match = TITLE_END.exec(padded);
+  const markerCut = (match ? padded.slice(0, match.index) : padded).trim();
+  const variants = new Set([value, bracketCut, markerCut].filter(Boolean));
+  // Some sites print the title twice: "Inception Inception (2010)".
+  for (const variant of [...variants]) {
+    const words = variant.split(' ');
+    const half = words.length / 2;
+    if (words.length % 2 === 0 && words.slice(0, half).join(' ').toLowerCase() === words.slice(half).join(' ').toLowerCase()) {
+      variants.add(words.slice(0, half).join(' '));
+    }
+  }
+  return [...variants].map(text).filter(Boolean);
+}
+function releaseYear(raw) {
+  const value = String(raw || '');
+  const inBrackets = value.match(/[([{]\s*((?:19|20)\d{2})\b/);
+  if (inBrackets) return Number(inBrackets[1]);
+  // A standalone year after the title (not one that starts it, like "1917").
+  const later = value.match(/\S\s+((?:19|20)\d{2})\b/);
+  return later ? Number(later[1]) : null;
+}
 function matches(movie, meta, result) {
   // A conflicting ID must never be accepted by a fuzzy fallback.
   if (meta.imdbId) return meta.imdbId === movie.imdb_id;
-  const names = [movie.title, movie.original_title].filter(Boolean).map(text);
-  // A provider may append the release year to its otherwise exact title.
-  const providerTitle = String(meta.title || result.title || '').trim();
-  const bareTitle = providerTitle.replace(/\s*\((?:19|20)\d{2}\)\s*$/, '');
-  if (!names.includes(text(bareTitle))) return false;
-  if (meta.type && isSeries({ title_type: meta.type }) !== isSeries(movie)) return false;
-  const year = Number(meta.year || result.year || (meta.title || '').match(/\b(19\d{2}|20\d{2})\b/)?.[1]);
-  return !year || !movie.release_year || year === movie.release_year;
+  const names = new Set([movie.title, movie.original_title].filter(Boolean).map(text));
+  const listings = [meta.title, result?.title].filter(value => String(value || '').trim());
+  if (!listings.some(listing => titleVariants(listing).some(variant => names.has(variant)))) return false;
+  const year = Number(meta.year || result?.year) || listings.map(releaseYear).find(Boolean) || null;
+  if (year && movie.release_year && year !== movie.release_year) return false;
+  // Series words in the listing are reliable; some adapters label every post "series".
+  const saysSeries = listings.some(listing => SERIES_MARKER.test(listing));
+  const wantsSeries = isSeries(movie);
+  if (saysSeries) return wantsSeries;
+  if (meta.type && isSeries({ title_type: meta.type }) !== wantsSeries) {
+    // Overrule a label that disagrees only for a movie with a matching year.
+    return Boolean(year && movie.release_year && !wantsSeries);
+  }
+  return true;
 }
 function linkOf(item) {
   if (typeof item === 'string') return item;
@@ -48,8 +87,26 @@ async function normalizeMetadata(movie, meta, provider, context) {
   const groups = Array.isArray(meta.linkList) ? meta.linkList : [];
   if (!isSeries(movie)) {
     const sorted = [...groups].sort((a, b) => rank(a) - rank(b));
-    const choices = sorted.flatMap(group => group.directLinks?.length ? group.directLinks.map(item => typeof item==='string'?{link:item,quality:group.title||group.quality}:{...item,quality:[group.title,group.quality,item.quality].filter(Boolean).join(' ')}) : [group]);
-    const links = choices.sort((a,b)=>rank(a)-rank(b)).map(linkOf).filter(Boolean);
+    const label = (group, item) => [group.title, group.quality, item?.quality].filter(Boolean).join(' ');
+    const choices = sorted.flatMap(group => group.directLinks?.length ? group.directLinks.map(item => typeof item==='string'?{link:item,quality:group.title||group.quality}:{...item,quality:label(group,item)}) : [group]);
+    let links = choices.sort((a,b)=>rank(a)-rank(b)).map(linkOf).filter(Boolean);
+    // Some providers put each movie quality on its own page (episodesLink) instead
+    // of listing direct links. Open the best few of those pages.
+    if (!links.length) {
+      const pages = sorted.filter(group => group.episodesLink && !linkOf(group)).slice(0, 3);
+      const module = pages.length ? loadProvider(provider, 'episodes') : {};
+      const getEpisodes = module.getEpisodes || module.getEpisodeLinks;
+      if (getEpisodes) {
+        const found = [];
+        for (const group of pages) {
+          try {
+            const items = await getEpisodes({ url: group.episodesLink, providerContext: context });
+            for (const item of Array.isArray(items) ? items : []) found.push({ ...(typeof item === 'string' ? { link: item } : item), quality: label(group, item) });
+          } catch { /* try the next quality page */ }
+        }
+        links = found.sort((a, b) => rank(a) - rank(b)).map(linkOf).filter(Boolean);
+      }
+    }
     return links.length ? { provider_name: provider, defaultStreamLink: links[0], links } : null;
   }
   const seasons = new Map();
@@ -185,4 +242,4 @@ async function resolvePlayback(movie, { season, episode, excludedProviders = [],
   }
   throw Object.assign(new Error('No playable sources found. Please try again later.'), { status: 503 });
 }
-module.exports = { fetchAndAttachProviderLinks, resolvePlayback, normalizeMetadata, normalizeStreams, parseEpisode, matches, bounded, episodeFor };
+module.exports = { fetchAndAttachProviderLinks, resolvePlayback, normalizeMetadata, normalizeStreams, parseEpisode, matches, titleVariants, releaseYear, bounded, episodeFor };

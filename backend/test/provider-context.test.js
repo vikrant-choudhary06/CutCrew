@@ -28,7 +28,7 @@ test('provider SHA-1 compatibility uses the real crypto implementation', async (
 
 test('default providers are limited to the live-verified shortlist', () => {
   const { getAvailableProvidersLocal } = require('../src/utils/providerHelper');
-  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'vega']);
+  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'hdhub4u', 'vega', 'luxMovies']);
   assert.ok(getAvailableProvidersLocal({ includeUnverified: true }).length > 2);
   process.env.ENABLED_PROVIDERS = 'vega,autoEmbed';
   try { assert.deepEqual(getAvailableProvidersLocal(), ['vega', 'autoEmbed']); }

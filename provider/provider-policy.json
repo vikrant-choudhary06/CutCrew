@@ -1,9 +1,11 @@
 {
   "defaultProviders": [
     "4khdhub",
-    "vega"
+    "hdhub4u",
+    "vega",
+    "luxMovies"
   ],
-  "description": "Default providers selected from live movie and episode checks. Other adapters remain available through ENABLED_PROVIDERS and diagnostics.",
+  "description": "Default providers, in the order they are tried, from the end-to-end check on 2026-11-05 (search, title match, stream and real video bytes for Inception, Interstellar, Jawan and Pathaan). vega and luxMovies refuse data-centre IPs, so hosted servers may narrow this list with ENABLED_PROVIDERS.",
   "verification": {
     "movie": "tt1375666",
     "series": "tt0944947",

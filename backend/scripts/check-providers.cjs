@@ -18,12 +18,14 @@ console.log = console.warn = console.error = () => {};
 const args = Object.fromEntries(process.argv.slice(2).map(arg => arg.replace(/^--/, '').split('=')));
 const requested = args.providers?.split(',');
 const providers = getAvailableProvidersLocal({ includeUnverified: true }).filter(name => !requested || requested.includes(name));
-const titles = (args['imdb-id'] ? [
+const listed = (args.movies || '').split(';').filter(Boolean).map(entry => { const [imdb_id, title, year] = entry.split('|'); return { imdb_id, title, release_year: Number(year), title_type: 'Movie', kind: 'movie' }; });
+const titles = (listed.length ? listed : args['imdb-id'] ? [
   { imdb_id: args['imdb-id'], title: args.title, release_year: Number(args.year), title_type: 'Movie', kind: 'movie' },
 ] : [
   { imdb_id: 'tt1375666', title: 'Inception', release_year: 2010, title_type: 'Movie', kind: 'movie' },
   { imdb_id: 'tt0944947', title: 'Game of Thrones', release_year: 2011, title_type: 'TV Series', kind: 'series', season: 1, episode: 1 },
 ]).filter(title => !args.content || title.kind === args.content);
+if (listed.some(title => !/^tt\d{5,12}$/.test(title.imdb_id) || !title.title || !Number.isInteger(title.release_year))) throw new Error('--movies expects id|title|year;...');
 if (args['imdb-id'] && (!/^tt\d{5,12}$/.test(args['imdb-id']) || !args.title || !Number.isInteger(Number(args.year)))) {
   throw new Error('Custom movie checks require --imdb-id=tt... --title=... --year=2026');
 }
@@ -154,7 +156,7 @@ async function main() {
   server.closeAllConnections(); server.close();
   const report = { checkedAt: new Date().toISOString(), credentialFree: true, sampleTitles: titles, results,
     verifiedProviders: [...new Set(results.filter(result => result.status === 'media-verified').map(result => result.provider))] };
-  const dir = path.resolve(__dirname, '../../reports'); fs.mkdirSync(dir, { recursive: true });
+  const dir = args['report-dir'] ? path.resolve(args['report-dir']) : path.resolve(__dirname, '../../reports'); fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, args.report || 'provider-health.json');
   fs.writeFileSync(file, JSON.stringify(report, null, 2) + '\n');
   output(JSON.stringify({ report: file, checks: results.length, verifiedProviders: report.verifiedProviders }));
