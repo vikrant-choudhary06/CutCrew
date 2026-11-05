@@ -22,6 +22,8 @@ test('titles wrapped in release details are recognised', () => {
   accepts(movie('Blade Runner 2049', 2017), 'Blade Runner 2049 (2017) BluRay');
   accepts(movie('1917', 2019), '1917 (2019) Dual Audio');
   accepts(movie('Mad Max: Fury Road', 2015), 'Mad Max: Fury Road (2015) Hindi');
+  accepts(movie('Avengers: Endgame', 2019), 'Avengers: Endgame Marvel Phase 3 (2019)');
+  rejects(movie('Avengers: Endgame', 2019), 'Avengers: Infinity War Marvel Phase 3 (2018)');
 });
 
 test('different films with overlapping names are rejected', () => {

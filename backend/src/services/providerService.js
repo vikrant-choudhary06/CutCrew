@@ -18,7 +18,7 @@ const text = value => String(value || '').toLowerCase().normalize('NFKD').replac
 // Netflix (2023) Hindi 1080p", "⭐ 8.4 Hindi, Dual Audio Inception 4K"). These
 // helpers recover the title so it can be compared exactly with the catalogue.
 const LEADING_NOISE = /^(?:download|watch|free|full|hindi|english|tamil|telugu|malayalam|kannada|punjabi|bengali|marathi|dual|multi|triple|audio|org|4k|uhd|hd|web-?dl|webrip|bluray|\d{3,4}p|[,&+|:\-–—])\s*/i;
-const TITLE_END = /\s(?:\(|\[|\{|\||[-–—]\s|(?:19|20)\d{2}\b|\d{3,4}p\b|4k\b|uhd\b|season\b|s\d{1,2}(?:e\d{1,3})?\b|episode\b|complete\b|dual\s+audio\b|multi\s+audio\b|hindi\b|english\b|bluray\b|blu-ray\b|web-?dl\b|webrip\b|hdrip\b|brrip\b|hdtc\b|full\s+movie\b|download\b|imax\b)/i;
+const TITLE_END = /\s(?:\(|\[|\{|\||[-–—]\s|(?:19|20)\d{2}\b|\d{3,4}p\b|4k\b|uhd\b|season\b|s\d{1,2}(?:e\d{1,3})?\b|episode\b|complete\b|dual\s+audio\b|multi\s+audio\b|hindi\b|english\b|bluray\b|blu-ray\b|web-?dl\b|webrip\b|hdrip\b|brrip\b|hdtc\b|full\s+movie\b|marvel\s+phase\b|download\b|imax\b)/i;
 const SERIES_MARKER = /\b(?:season\s*\d+|s\d{1,2}(?:e\d{1,3})?|episodes?|complete\s+series|web\s+series|all\s+episodes)\b/i;
 function titleVariants(raw) {
   let value = String(raw || '').replace(/⭐\s*[\d.]+/g, ' ').replace(/\s+/g, ' ').trim();
