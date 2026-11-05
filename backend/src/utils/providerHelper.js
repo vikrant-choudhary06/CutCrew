@@ -24,9 +24,28 @@ async function getBaseUrl(provider) {
   if (!url) throw new Error('No base URL configured for provider ' + provider);
   return url;
 }
-function getProviderContext(signal) {
+// Per-provider settings for providers that read them (kvStore). Set in .env as
+// PROVIDER_SETTINGS={"internetArchive":{"licenses":"publicDomain"}}; anything
+// not set falls back to the provider's own default.
+const savedSettings = new Map();
+function providerSettings(provider) {
+  try {
+    const all = JSON.parse(process.env.PROVIDER_SETTINGS || '{}');
+    return all && typeof all[provider] === 'object' && all[provider] ? all[provider] : {};
+  } catch { return {}; }
+}
+function kvStoreFor(provider) {
+  const own = () => { if (!savedSettings.has(provider)) savedSettings.set(provider, new Map()); return savedSettings.get(provider); };
+  return {
+    get: async key => (own().has(key) ? own().get(key) : providerSettings(provider)[key]),
+    set: async (key, value) => { own().set(key, value); },
+    delete: async key => { own().delete(key); },
+  };
+}
+function getProviderContext(signal, provider = '') {
   const client = axios.create({ timeout: 10000, signal });
   return {
+    kvStore: kvStoreFor(provider),
     axios: client, cheerio, getBaseUrl,
     commonHeaders: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
     Aes: { sha1: async input => crypto.createHash('sha1').update(String(input)).digest('hex') },

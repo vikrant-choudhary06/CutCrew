@@ -74,7 +74,7 @@ async function inspect(provider, movie, root) {
     status: 'not-tested', searchResults: 0, matchingMetadata: 0, sourceCount: 0, networkErrors: {} };
   try {
     await bounded(async signal => {
-      const context = getProviderContext(signal);
+      const context = getProviderContext(signal, provider);
       context.axios.interceptors.request.use(config => {
         config.headers.delete('Cookie'); config.headers.delete('Authorization');
         return config;

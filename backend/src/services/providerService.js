@@ -149,7 +149,7 @@ async function discoverProvider(movie, provider, signal) {
   const posts = loadProvider(provider, 'posts');
   const metadata = loadProvider(provider, 'meta');
   if (!posts.getSearchPosts || !metadata.getMeta) return null;
-  const context = getProviderContext(signal);
+  const context = getProviderContext(signal, provider);
   const results = await posts.getSearchPosts({ searchQuery: movie.title, page: 1, providerValue: provider, signal, providerContext: context });
   const candidates = await Promise.all((Array.isArray(results) ? results : []).slice(0, 5).map(async result => {
     try {
@@ -213,7 +213,7 @@ async function resolvePlayback(movie, { season, episode, excludedProviders = [],
         if (!target) return null;
         const module = loadProvider(provider, 'stream');
         if (!module.getStream) return null;
-        const context = getProviderContext(signal);
+        const context = getProviderContext(signal, provider);
         const attempt = async current => {
           const links = isSeries(movie) ? [episodeFor(current, season, episode)?.link] : current.links || [current.defaultStreamLink];
           for (const link of links.filter(Boolean).slice(0, 3)) {

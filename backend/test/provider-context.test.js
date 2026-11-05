@@ -28,9 +28,30 @@ test('provider SHA-1 compatibility uses the real crypto implementation', async (
 
 test('default providers are limited to the live-verified shortlist', () => {
   const { getAvailableProvidersLocal } = require('../src/utils/providerHelper');
-  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'hdhub4u', 'vega', 'luxMovies']);
+  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'hdhub4u', 'vega', 'luxMovies', 'internetArchive']);
   assert.ok(getAvailableProvidersLocal({ includeUnverified: true }).length > 2);
   process.env.ENABLED_PROVIDERS = 'vega,autoEmbed';
   try { assert.deepEqual(getAvailableProvidersLocal(), ['vega', 'autoEmbed']); }
   finally { delete process.env.ENABLED_PROVIDERS; }
+});
+
+test('providers read their own settings through kvStore', async () => {
+  const { getProviderContext } = require('../src/utils/providerHelper');
+  const saved = process.env.PROVIDER_SETTINGS;
+  process.env.PROVIDER_SETTINGS = JSON.stringify({ internetArchive: { licenses: 'publicDomain' } });
+  try {
+    const archive = getProviderContext(undefined, 'internetArchive').kvStore;
+    const other = getProviderContext(undefined, 'vega').kvStore;
+    assert.equal(await archive.get('licenses'), 'publicDomain');
+    assert.equal(await archive.get('sort'), undefined, 'unset keys fall back to the provider default');
+    assert.equal(await other.get('licenses'), undefined, 'settings are per provider');
+    await archive.set('sort', 'avg_rating');
+    assert.equal(await getProviderContext(undefined, 'internetArchive').kvStore.get('sort'), 'avg_rating');
+    await archive.delete('sort');
+    assert.equal(await archive.get('sort'), undefined);
+    process.env.PROVIDER_SETTINGS = 'not json';
+    assert.equal(await archive.get('licenses'), undefined, 'a broken setting never crashes a provider');
+  } finally {
+    if (saved === undefined) delete process.env.PROVIDER_SETTINGS; else process.env.PROVIDER_SETTINGS = saved;
+  }
 });
