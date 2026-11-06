@@ -94,7 +94,10 @@ export default function Watch() {
   }, [source, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function fail() {
-    offset.current = position();
+    // Keep the resume point if the failed source never got going (it reports 0).
+    const reached = position();
+    if (reached > 1 && !pendingSeek.current) offset.current = reached;
+    else if (pendingSeek.current) offset.current = pendingSeek.current;
     if (source?.stored && !retried.current.has(sourceKey)) { retried.current.add(sourceKey); setReload(n => n + 1); return; }
     if (streams && index + 1 < streams.list.length) { setPick({ key: requestKey, index: index + 1 }); return; }
     if (streams?.provider === STORAGE) { setRequest(r => ({ exclude: [...r.exclude, STORAGE], refresh: false, serial: r.serial + 1 })); return; }
