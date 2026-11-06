@@ -45,14 +45,17 @@ own keystore before publishing anywhere.
 ## Updates
 
 **JavaScript changes (OTA, no new APK).** Phones on the same native version
-(app.json , used as runtimeVersion) download the update in the
-background and run it the next time the app opens. It comes from CutCrew's own
-backend (), not EAS.
+(app.json `version`, used as `runtimeVersion`) download the update in the
+background and run it the next time the app opens. Updates come from CutCrew's
+own backend (`/api/updates/*`), not EAS.
 
-\
-**Native changes (new APK).** Raise  and  in
-app.json, build the APK, publish it as a GitHub release, then set
- (version, versionCode, apkUrl). On start the
+```bash
+CUTCREW_SSH_KEY=/path/to/server-key.pem npm run publish:update
+```
+
+**Native changes (new APK).** Raise `version` and `android.versionCode` in
+app.json, build the APK, publish it as a GitHub release, then update
+`backend/app-releases/android.json` (version, versionCode, apkUrl). On start the
 app compares versionCode and offers the download; Android asks once to allow
-installs from CutCrew. A copy at  on
+installs from CutCrew. A copy at `backend/.local/app-releases/android.json` on
 the server overrides the one in git without a rebuild.
