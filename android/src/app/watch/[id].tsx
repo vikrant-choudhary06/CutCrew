@@ -51,6 +51,9 @@ export default function Watch() {
     return p && !p.completed && p.position > 10 ? p.position - 3 : 0;
   }, [id, season, episode]); // eslint-disable-line react-hooks/exhaustive-deps
   const offset = useRef(startAt);
+  // Where to jump once the loaded source is ready. Seeking straight after
+  // loading is ignored for progressive files (MKV/MP4), so it waits.
+  const pendingSeek = useRef(0);
   const stats = useRef({ session: Crypto.randomUUID(), played: 0, lastTick: 0, lastSave: 0, lastReport: 0 });
 
   const player = useVideoPlayer(null, p => { p.timeUpdateEventInterval = 1; });
@@ -83,7 +86,7 @@ export default function Watch() {
     if (!source) return;
     const start = Math.floor(offset.current);
     player.replaceAsync({ uri: BASE + source.link, contentType: source.type === 'hls' ? 'hls' : 'progressive', metadata: { title: title?.title } })
-      .then(() => { if (start > 0) player.currentTime = start; player.play(); })
+      .then(() => { pendingSeek.current = start; player.play(); })
       .catch(() => fail());
   }, [source, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -98,7 +101,10 @@ export default function Watch() {
   const position = () => player.currentTime || 0;
 
   useEventListener(player, 'statusChange', ({ status: next }) => {
-    if (next === 'readyToPlay') setPlayed({ key: sourceKey, ready: true });
+    if (next === 'readyToPlay') {
+      if (pendingSeek.current > 0) { player.currentTime = pendingSeek.current; pendingSeek.current = 0; }
+      setPlayed({ key: sourceKey, ready: true });
+    }
     else if (next === 'error') fail();
   });
 

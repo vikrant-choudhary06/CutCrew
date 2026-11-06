@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Application from 'expo-application';
 import { File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
-import { Alert, Platform } from 'react-native';
+import { Alert, Platform, ToastAndroid } from 'react-native';
 import { getJSON } from './api';
 
 export type Release = { version: string; versionCode: number; apkUrl: string; notes?: string; sizeMb?: number };
@@ -24,7 +24,8 @@ export function isNewer(release: Partial<Release> | null, installedCode: number)
 async function install(release: Release) {
   const target = new File(Paths.cache, `CutCrew-${release.version}.apk`);
   if (target.exists) target.delete();
-  Alert.alert('Downloading update', `CutCrew ${release.version} is downloading. The installer opens when it is ready.`);
+  // A toast, not a popup: a popup would still be open after the installer closes.
+  ToastAndroid.show(`Downloading CutCrew ${release.version}… The installer opens when it is ready.`, ToastAndroid.LONG);
   const file = await File.downloadFileAsync(release.apkUrl, target);
   // Android asks once to allow installs from CutCrew ("Install unknown apps").
   await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
