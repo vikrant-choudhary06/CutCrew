@@ -41,3 +41,18 @@ Then in `android/`:
 
 The release APK is signed with the debug key (fine for sideloading). Make your
 own keystore before publishing anywhere.
+
+## Updates
+
+**JavaScript changes (OTA, no new APK).** Phones on the same native version
+(app.json , used as runtimeVersion) download the update in the
+background and run it the next time the app opens. It comes from CutCrew's own
+backend (), not EAS.
+
+\
+**Native changes (new APK).** Raise  and  in
+app.json, build the APK, publish it as a GitHub release, then set
+ (version, versionCode, apkUrl). On start the
+app compares versionCode and offers the download; Android asks once to allow
+installs from CutCrew. A copy at  on
+the server overrides the one in git without a rebuild.
