@@ -28,13 +28,18 @@ const reportName = (arg('report') || 'sources-health.json').replace(/[^\w.-]/g, 
   for (const title of titles) {
     const label = title.season ? `${title.title} S${title.season}E${title.episode}` : title.title;
     const runs = await Promise.all(chosen.map(source => sources.runSource(source, { ...title, movie: title }, Number(arg("timeout")) > 0 ? { timeoutMs: Number(arg("timeout")) } : {})));
+    // A real title is long; a short clip (an ad or a "sign in" video) is a failure.
+    await Promise.all(runs.filter(run => run.streams.length).map(async run => {
+      run.length = await sources.durationOf(run.streams[0], { timeoutMs: 20000 });
+      if (run.length !== null && run.length < sources.minimumLength(title)) { run.tooShort = true; run.streams = []; }
+    }));
     for (const run of runs) {
       const entry = {
         source: run.source, title: label, imdbId: title.imdb_id,
-        status: run.streams.length ? 'media-verified' : run.skipped ? 'skipped' : run.error === 'timed out' ? 'timed-out' : run.error ? 'error' : 'no-stream',
+        status: run.streams.length ? 'media-verified' : run.tooShort ? 'too-short' : run.skipped ? 'skipped' : run.error === 'timed out' ? 'timed-out' : run.error ? 'error' : 'no-stream',
         streams: run.streams.length, formats: [...new Set(run.streams.map(s => s.type))],
         qualities: [...new Set(run.streams.map(s => s.quality).filter(Boolean))],
-        audio: [...new Set(run.streams.flatMap(s => s.audio || []))], ms: run.ms, ...(run.error ? { error: String(run.error).slice(0, 200) } : {}),
+        audio: [...new Set(run.streams.flatMap(s => s.audio || []))], ms: run.ms, ...(run.length ? { lengthMinutes: Math.round(run.length / 60) } : {}), ...(run.error ? { error: String(run.error).slice(0, 200) } : {}),
       };
       results.push(entry);
       console.log(JSON.stringify(entry));

@@ -71,3 +71,25 @@ test('client=app gets the original MKV through the relay (seekable); the website
   assert.equal(web.body.streams[0].remuxed, true);
   assert.equal(media.verifyToken(new URL(web.body.streams[0].link, 'http://x').searchParams.get('token')).format, 'mkv');
 });
+
+test('cached streams from a switched-off source are not served; playback finds new ones', async () => {
+  const sourceProbe = require('../src/services/sourceProbe');
+  const originalFilter = sourceProbe.filterPlayable;
+  sourceProbe.filterPlayable = async streams => streams;
+  const promo = { link: 'https://cdn.example/promo.mp4', type: 'mp4', provider: 'moviebox', server: 'MovieBox · 480p' };
+  Movie.findOne = async () => title({ provider_name: 'moviebox', stream_data: [promo], stream_fetched_at: new Date() });
+  Movie.findOneAndUpdate = async () => title();
+  Movie.updateOne = async () => ({ matchedCount: 1 });
+  let collected = 0;
+  collectImpl = async () => { collected++; return { streams: [{ ...stream, link: 'https://cdn.example/real.mkv', type: 'mkv', provider: 'desiflix' }], provider: 'desiflix', candidate: null, sources: [] }; };
+  try {
+    const saved = process.env.MOVIEBOX_KEY_B64;
+    delete process.env.MOVIEBOX_KEY_B64; // MovieBox is off without its keys
+    const result = await get('/api/movies/play/tt15354916');
+    if (saved !== undefined) process.env.MOVIEBOX_KEY_B64 = saved;
+    assert.equal(result.status, 200);
+    assert.equal(result.body.cached, false);
+    assert.equal(result.body.provider, 'desiflix');
+    assert.equal(collected, 1);
+  } finally { sourceProbe.filterPlayable = originalFilter; }
+});

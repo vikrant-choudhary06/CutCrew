@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { Movie } = require('../models');
 const { ensureMovie, isSeries } = require('../services/movieService');
 const { resolvePlayback, normalizeStreams, episodeFor } = require('../services/providerService');
-const { collectStreams } = require('../services/streamSources');
+const { collectStreams, sourceOrder } = require('../services/streamSources');
 const { presentStreams } = require('../services/mediaService');
 const sourceProbe = require('../services/sourceProbe');
 const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
@@ -33,7 +33,9 @@ router.get('/:imdb_id', async (req, res, next) => {
     }
     const target = series ? episodeFor(movie, season, episode) : movie;
     const cachedProvider = target?.provider_name || movie.provider_name;
-    const cached = normalizeStreams(target?.stream_data);
+    // Streams from a source that is now switched off are not served from the cache.
+    const active = new Set(sourceOrder());
+    const cached = normalizeStreams(target?.stream_data).filter(stream => !stream.provider || active.has(stream.provider));
     if (req.query.refresh !== '1' && !excludedProviders.includes(cachedProvider) && cached.length &&
         Date.now() - new Date(target.stream_fetched_at).getTime() < CACHE_MS) {
       res.set('Cache-Control', 'no-store');

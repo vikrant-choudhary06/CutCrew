@@ -54,8 +54,10 @@ function stremioAddons() {
 
 // Doom-addon providers. MovieBox checks every stream it finds before
 // answering, so it gets longer; it needs its signing keys in .env.
+// verifyDuration: the first streams' length is checked (MovieBox has served a
+// short promo video instead of the film).
 const SOURCES = {
-  moviebox: { kind: 'doom', label: 'MovieBox', file: 'moviebox.js', timeoutMs: () => Number(process.env.MOVIEBOX_TIMEOUT_MS) || 25000, configured: () => Boolean(process.env.MOVIEBOX_KEY_B64 && process.env.MOVIEBOX_KEY_B64_ALT) },
+  moviebox: { kind: 'doom', label: 'MovieBox', file: 'moviebox.js', verifyDuration: true, timeoutMs: () => Number(process.env.MOVIEBOX_TIMEOUT_MS) || 25000, configured: () => Boolean(process.env.MOVIEBOX_KEY_B64 && process.env.MOVIEBOX_KEY_B64_ALT) },
 };
 const sourceDef = id => stremioAddons()[id] || SOURCES[id] || null;
 
@@ -214,6 +216,18 @@ async function doomStreams(source, title, { load, fetch: get } = {}) {
   return (Array.isArray(items) ? items : []).map(item => fromAddon(item, source)).filter(Boolean);
 }
 
+// Video length in seconds (ffprobe), or null when it cannot be read.
+function durationOf(stream, { timeoutMs = 8000, run } = {}) {
+  const exec = run || ((args, options) => new Promise((resolve, reject) => {
+    require('child_process').execFile(process.env.FFPROBE_PATH || 'ffprobe', args, options, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+  }));
+  const headers = Object.entries(stream.headers || {}).filter(([k, v]) => !/[\r\n]/.test(`${k}${v}`)).map(([k, v]) => `${k}: ${v}\r\n`).join('');
+  const args = ['-v', 'error', ...(headers ? ['-headers', headers] : []), '-show_entries', 'format=duration', '-of', 'csv=p=0', stream.link];
+  return exec(args, { timeout: timeoutMs }).then(out => { const value = Number(String(out).trim()); return Number.isFinite(value) && value > 0 ? value : null; }).catch(() => null);
+}
+// Shortest believable length: films 10 minutes, episodes 3 minutes.
+const minimumLength = title => (isSeries(title) ? 180 : 600);
+
 function withTimeout(work, ms, controller) {
   let timer;
   return Promise.race([
@@ -253,7 +267,14 @@ async function runSource(source, title, options = {}) {
       // The probe checks only the first few, so put the best ones first.
       const indian = isIndian(title);
       const best = [...found].sort((a, b) => audioScore(a, indian) - audioScore(b, indian) || (b.height || 0) - (a.height || 0));
-      return { streams: best.length ? await probe(best) : [] };
+      let playable = best.length ? await probe(best) : [];
+      if (playable.length && sourceDef(source)?.verifyDuration) {
+        const measure = options.durationOf || durationOf;
+        const lengths = await Promise.all(playable.slice(0, 2).map(stream => measure(stream)));
+        // Unknown length is allowed; a known short length means a clip, not the title.
+        if (lengths.some(length => length !== null && length < minimumLength(title))) playable = [];
+      }
+      return { streams: playable };
     })(), limit, controller);
     const ms = Date.now() - started;
     providerStatus.record(source, result.streams.length > 0, ms);
@@ -359,6 +380,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, durationOf, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, tmdbIdFor, kindOf, labelOf, SOURCES, DEFAULT_ORDER, _tmdbCache: tmdbCache, _doomModules: doomModules,
 };

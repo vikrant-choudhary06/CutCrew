@@ -269,6 +269,29 @@ test('IMDb to TMDB comes from Cinemeta and is cached', async () => {
   sources._tmdbCache.clear();
 });
 
+test('a MovieBox clip shorter than a film is dropped; unknown length is allowed', async () => {
+  sources._doomModules.clear(); sources._tmdbCache.clear();
+  const load = () => ({ getStreams: async () => [{ url: 'https://cdn.example/promo.mp4', title: '1080p Hindi' }] });
+  const fetch = async () => json({ meta: {} });
+  const promo = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => 22.7 });
+  assert.deepEqual(promo.streams, []);
+  const film = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => 9900 });
+  assert.equal(film.streams.length, 1);
+  const unknown = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => null });
+  assert.equal(unknown.streams.length, 1);
+  assert.equal(sources.minimumLength({ title_type: 'TV Series' }), 180);
+  assert.equal(sources.minimumLength({ title_type: 'Movie' }), 600);
+  sources._doomModules.clear(); sources._tmdbCache.clear();
+});
+
+test('ffprobe output becomes a length in seconds', async () => {
+  let args;
+  assert.equal(await sources.durationOf({ link: 'https://x/v.mp4', headers: { Referer: 'https://r/' } }, { run: async given => { args = given; return '1362.5\n'; } }), 1362.5);
+  assert.ok(args.includes('-headers') && args.includes('Referer: https://r/\r\n'));
+  assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => { throw new Error('no ffprobe'); } }), null);
+  assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => 'N/A' }), null);
+});
+
 test('the vendored MovieBox keeps no keys in git, and Pengu/Flix copies are gone', () => {
   const dir = path.join(__dirname, '../vendor/doom-addon');
   assert.deepEqual(fs.readdirSync(dir).sort(), ['LICENSE', 'SOURCE.md', 'moviebox.js']);

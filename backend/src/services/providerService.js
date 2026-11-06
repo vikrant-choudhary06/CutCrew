@@ -186,7 +186,7 @@ function normalizeStreams(input) {
     seen.add(link);
     const type = /m3u8|mpegurl|hls/i.test(item.type || '') || /\.m3u8(?:\?|$)/i.test(link) ? 'hls'
       : /mkv|matroska/i.test(item.type || '') || /\.mkv(?:\?|$)/i.test(link) ? 'mkv' : 'mp4';
-    return [{ link, type, server: item.server || 'Source', quality: item.quality || '',
+    return [{ link, type, server: item.server || 'Source', quality: item.quality || '', ...(item.provider ? { provider: item.provider } : {}),
       headers: item.headers || {}, subtitles: Array.isArray(item.subtitles) ? item.subtitles : [] }];
   });
 }
