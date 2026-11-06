@@ -115,6 +115,29 @@ function presentStreams(streams, { client = 'web' } = {}) {
     } catch { return []; }
   });
 }
+// What media the first bytes are, whatever the server's label says.
+function mediaKind(bytes) {
+  if (!bytes?.length) return null;
+  if (bytes[0] === 0x47 && (bytes.length < 189 || bytes[188] === 0x47)) return 'video/mp2t';
+  const box = bytes.subarray(4, 8).toString('latin1');
+  if (['ftyp', 'styp', 'moof', 'moov', 'sidx'].includes(box)) return 'video/mp4';
+  if (bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'video/x-matroska';
+  if (bytes.subarray(0, 3).toString('latin1') === 'ID3' || (bytes[0] === 0xff && (bytes[1] & 0xf0) === 0xf0)) return 'audio/aac';
+  return null;
+}
+// First chunk of a response stream; the stream is left paused for piping.
+function firstChunk(stream, timeoutMs = 15000) {
+  return new Promise((resolve, reject) => {
+    const done = () => { clearTimeout(timer); stream.off('data', onData); stream.off('end', onEnd); stream.off('error', onError); };
+    const onData = chunk => { done(); stream.pause(); resolve(Buffer.from(chunk)); };
+    const onEnd = () => { done(); resolve(Buffer.alloc(0)); };
+    const onError = error => { done(); reject(error); };
+    const timer = setTimeout(() => { done(); reject(new Error('Source sent no data')); }, timeoutMs);
+    stream.on('data', onData); stream.once('end', onEnd); stream.once('error', onError);
+  });
+}
+const LABELLED_MEDIA = /^(video|audio)\/|octet-stream|mpegurl|mp2t|matroska/i;
+
 async function readText(stream, limit = 2 * 1024 * 1024) {
   const chunks = []; let size = 0;
   for await (const chunk of stream) {
@@ -156,7 +179,7 @@ async function relay(req, res) {
     const response = await open(start===null?req.headers.range:`bytes=${start}-${end}`);
     const size=Number((response.headers['content-range']||'').match(/\/(\d+)$/)?.[1]||(response.status===200?response.headers['content-length']:0));
     if(Number.isSafeInteger(size)&&size>0)metadata.put(ticket,{size});
-    const type = response.headers['content-type'] || '';
+    let type = response.headers['content-type'] || '';
     res.set('Cache-Control', 'private, no-store');
     if (/mpegurl/i.test(type) || /\.m3u8(?:\?|$)/i.test(url) || ticket.format === 'hls') {
       const body = await readText(response.data);
@@ -167,7 +190,16 @@ async function relay(req, res) {
       if (ticket.format === 'srt') body = 'WEBVTT\n\n' + body.replace(/^\uFEFF/, '').replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
       res.type('text/vtt').send(body);
     } else {
-      if (/text\/html/i.test(type)) { response.data.destroy(); throw new Error('Source returned a page instead of video'); }
+      // A label that isn't media (image/jpeg, text/html, text/css…) is checked
+      // against the first bytes: real video is passed on with the right type.
+      let corrected = false;
+      if (type && !LABELLED_MEDIA.test(type)) {
+        const first = await firstChunk(response.data);
+        const kind = mediaKind(first);
+        if (!kind) { response.data.destroy(); throw new Error('Source returned a page instead of video'); }
+        response.data.unshift(first);
+        type = kind; corrected = true;
+      }
       // Backpressure while paused or converting is normal. Keep the connection deadline
       // for opening the source, but do not apply it to the lifetime of a media response.
       response.request?.setTimeout?.(0);
@@ -178,6 +210,7 @@ async function relay(req, res) {
       for (const name of ['content-type','content-length','content-range','accept-ranges']) {
         if (response.headers[name]) res.set(name, response.headers[name]);
       }
+      if (corrected) res.set('Content-Type', type);
       res.status(response.status);
       response.data.on('error', () => res.destroy());
       response.data.pipe(res);
@@ -188,4 +221,4 @@ async function relay(req, res) {
     else res.destroy();
   }
 }
-module.exports = { relay, presentStreams, signMedia, verifyToken, rewritePlaylist, publicAddress, validateUrl, safeLookup, openMedia };
+module.exports = { mediaKind, firstChunk, relay, presentStreams, signMedia, verifyToken, rewritePlaylist, publicAddress, validateUrl, safeLookup, openMedia };
