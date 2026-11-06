@@ -28,7 +28,10 @@ const stateFile = () => process.env.SOURCE_STATE_FILE || path.resolve(__dirname,
 // sign-in, so it runs only when its link has a path after the host.
 const DEFAULT_ADDONS = 'desiflix=https://manifest.desitvhub.eu.org,hdhub=https://hdhub.thevolecitor.qzz.io,censored=https://censoredaddon.vercel.app';
 const ADDON_INFO = {
-  desiflix: { label: 'DesiFlix' }, hdhub: { label: 'HdHub' }, pengu: { label: 'PenguPlay' },
+  desiflix: { label: 'DesiFlix' }, hdhub: { label: 'HdHub' },
+  // PenguPlay prepares each file when it is first asked for, which can take
+  // several seconds; later requests are quick.
+  pengu: { label: 'PenguPlay', timeoutMs: 25000, probeTimeoutMs: 12000 },
   // CENSORED gathers many sites and often needs 5–20 s.
   censored: { label: 'CENSORED', timeoutMs: 20000 },
 };
@@ -42,6 +45,7 @@ function stremioAddons() {
     addons[id] = {
       kind: 'stremio', label: ADDON_INFO[id]?.label || id, base: () => base,
       timeoutMs: () => Number(process.env[`${id.toUpperCase()}_TIMEOUT_MS`]) || ADDON_INFO[id]?.timeoutMs || API_TIMEOUT_MS,
+      probeTimeoutMs: () => ADDON_INFO[id]?.probeTimeoutMs,
       configured: () => id !== 'pengu' || new URL(base).pathname.length > 1,
     };
   }
@@ -236,7 +240,7 @@ async function runSource(source, title, options = {}) {
   const controller = new AbortController();
   const kind = kindOf(source);
   const limit = options.timeoutMs || sourceDef(source)?.timeoutMs?.() || (kind === 'vega' ? VEGA_TIMEOUT_MS : API_TIMEOUT_MS);
-  const probe = options.probe || (streams => sourceProbe.filterPlayable(streams, { signal: controller.signal }));
+  const probe = options.probe || (streams => sourceProbe.filterPlayable(streams, { signal: controller.signal, timeoutMs: sourceDef(source)?.probeTimeoutMs?.() }));
   try {
     const result = await withTimeout((async () => {
       if (kind === 'vega') {

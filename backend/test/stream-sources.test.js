@@ -213,6 +213,9 @@ test('STREMIO_ADDONS sets the add-ons; PenguPlay needs a signed-in link; SOURCE_
     assert.equal(sources.sourceDef('hdhub').base(), 'https://h.example');
     assert.equal(sources.sourceDef('censored').timeoutMs(), 20000);
     assert.equal(sources.sourceDef('hdhub').timeoutMs(), 10000);
+    assert.equal(sources.sourceDef('pengu').timeoutMs(), 25000);
+    assert.equal(sources.sourceDef('pengu').probeTimeoutMs(), 12000);
+    assert.equal(sources.sourceDef('hdhub').probeTimeoutMs(), undefined);
     // pengu.uk without a config path only offers a sign-in notice.
     assert.deepEqual(sources.sourceOrder(), ['desiflix', 'hdhub', 'censored', 'moviebox', '4khdhub', 'hdhub4u']);
     process.env.STREMIO_ADDONS += ',pengu=https://pengu.uk/%7Bmy-config%7D';

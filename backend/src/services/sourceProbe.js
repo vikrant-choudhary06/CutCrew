@@ -10,9 +10,9 @@ function signature(bytes) {
   if (bytes.toString('utf8').replace(/^\uFEFF/,'').trimStart().startsWith('#EXTM3U')) return 'hls';
   return null;
 }
-async function probe(stream, {signal,open=openMedia,depth=0} = {}) {
+async function probe(stream, {signal,open=openMedia,depth=0,timeoutMs=4500} = {}) {
   const controller = new AbortController();
-  const abort = AbortSignal.any([controller.signal, AbortSignal.timeout(4500), ...(signal ? [signal] : [])]);
+  const abort = AbortSignal.any([controller.signal, AbortSignal.timeout(timeoutMs), ...(signal ? [signal] : [])]);
   let response;
   try {
     response = await open(stream.link, stream.headers, 'bytes=0-4095', abort);
@@ -31,7 +31,7 @@ async function probe(stream, {signal,open=openMedia,depth=0} = {}) {
       const headers={...stream.headers};
       if(target.origin!==new URL(stream.link).origin)for(const key of Object.keys(headers))if(/^(cookie|authorization)$/i.test(key))delete headers[key];
       response.data.destroy();
-      const segment=await probe({...stream,link:target.href,headers},{signal:abort,open,depth:depth+1});
+      const segment=await probe({...stream,link:target.href,headers},{signal:abort,open,depth:depth+1,timeoutMs});
       return {...segment,format:'hls',seekable:false};
     }
     return {ok:!!format,format:format==='matroska'?'mkv':format,reason:format||'invalid-media',seekable:response.status===206&&/^bytes 0-\d+\/\d+$/.test(response.headers['content-range']||'')};
@@ -39,22 +39,23 @@ async function probe(stream, {signal,open=openMedia,depth=0} = {}) {
     return {ok:false,reason:abort.aborted?'probe-timeout':error.response?.status?'http-'+error.response.status:'source-unavailable'};
   } finally { response?.data.destroy(); controller.abort(); }
 }
-async function checked(stream,signal) {
+async function checked(stream,signal,timeoutMs) {
   const key=crypto.createHash('sha256').update(JSON.stringify([stream.link,stream.headers||{}])).digest('hex');
   const previous=cache.get(key);
   if(previous?.until>Date.now())return previous.result;
   if(pending.has(key))return pending.get(key);
-  const task=probe(stream,{signal}).then(result=>{
+  const task=probe(stream,{signal,timeoutMs}).then(result=>{
     if(!signal?.aborted){if(cache.size>=1000)cache.delete(cache.keys().next().value);cache.set(key,{result,until:Date.now()+(result.ok?30000:15000)})}
     return result;
   }).finally(()=>pending.delete(key));
   pending.set(key,task);return task;
 }
-async function filterPlayable(streams,{signal,check=checked}={}) {
+// timeoutMs: per-link limit (default 4.5 s); some sources prepare a file on first request.
+async function filterPlayable(streams,{signal,check=checked,timeoutMs}={}) {
   const valid=[];
   // Bounded batches avoid creating a connection for every provider mirror.
   for(let index=0;index<Math.min(streams.length,6)&&!signal?.aborted;index+=3){
-    const batch=await Promise.all(streams.slice(index,index+3).map(async stream=>({stream,result:await check(stream,signal)})));
+    const batch=await Promise.all(streams.slice(index,index+3).map(async stream=>({stream,result:await check(stream,signal,timeoutMs)})));
     for(const item of batch)if(item.result.ok)valid.push(item);
     if(valid.length)break;
   }
