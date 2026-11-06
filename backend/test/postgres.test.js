@@ -2,7 +2,6 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const db = require('../src/config/db');
 const { Movie, User } = require('../src/models');
-const { importRecords } = require('../src/services/databaseImport');
 before(async () => {
   await require('./connect-test-db.cjs')();
 });
@@ -48,36 +47,8 @@ test('conditional discovery cannot overwrite existing episode caches', async () 
   assert.equal(result.matchedCount, 0);
   assert.equal((await Movie.findOne({ imdb_id: 'tt0000010' })).seasons[0].episodes[0].stream_data.length, 1);
 });
-test('dry-run exercises PostgreSQL constraints and leaves no catalogue or user records', async () => {
-  const result = await importRecords({ movies: [fixture('tt0000020')], users: [{ _id: 'u20', email: 'dry@example.test', password: 'existing-hash' }] });
-  assert.equal(result.movies.wouldInsert, 1); assert.equal(result.movies.inserted, 0);
-  assert.equal(await Movie.findOne({ imdb_id: 'tt0000020' }), null);
-  assert.equal(await User.countDocuments(), 0);
-});
-test('import preserves legacy IDs, dates, nested episodes, provider headers and existing password hashes', async () => {
-  const source = fixture('tt0000021');
-  const user = { _id: 'u21', email: 'import@example.test', password: '$existing-hash', role: 'admin' };
-  const result = await importRecords({ movies: [source], users: [user], apply: true });
-  assert.equal(result.movies.inserted, 1); assert.equal(result.users.inserted, 1);
-  const target = await Movie.findOne({ imdb_id: source.imdb_id });
-  assert.equal(target._id, source._id); assert.equal(+target.createdAt, +source.createdAt);
-  assert.deepEqual(target.stream_data, source.stream_data); assert.deepEqual(target.seasons, source.seasons);
-  assert.equal((await db.query('SELECT password FROM users WHERE id = $1', ['u21'])).rows[0].password, user.password);
-});
-test('re-running import skips existing identities without replacing target changes', async () => {
-  const result = await importRecords({ movies: [{ ...fixture('tt0000021'), title: 'Stale title' }], users: [{ _id: 'u21', email: 'import@example.test', password: 'different' }], apply: true });
-  assert.equal(result.movies.skipped, 1); assert.equal(result.users.skipped, 1);
-  assert.equal((await Movie.findOne({ imdb_id: 'tt0000021' })).title, 'A+B[ special');
-});
-test('invalid source data rolls back movies and users already inserted in the transaction', async () => {
-  await assert.rejects(importRecords({ movies: [fixture('tt0000030')], users: [{ _id: 'invalid' }], apply: true }), /invalid user/);
-  assert.equal(await Movie.findOne({ imdb_id: 'tt0000030' }), null);
-});
-test('dry-run rejects values PostgreSQL cannot cast and rolls back its earlier records', async () => {
-  await assert.rejects(importRecords({ movies: [fixture('tt0000031'), { ...fixture('tt0000032'), release_year: 1.5 }], users: [] }), { code: '22P02' });
-  assert.equal(await Movie.findOne({ imdb_id: 'tt0000031' }), null);
-});
 test('admin user counts use SQL and duplicate email/invalid role constraints apply', async () => {
+  await User.create({ email: 'import@example.test', password: 'hash' });
   assert.equal(await User.countDocuments(), 1);
   await assert.rejects(User.create({ email: 'import@example.test', password: 'hash' }), { code: '23505' });
   await assert.rejects(User.create({ email: 'role@example.test', password: 'hash', role: 'root' }), { code: '23514' });

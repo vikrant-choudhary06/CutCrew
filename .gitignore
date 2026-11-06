@@ -2,8 +2,6 @@
 .claude/
 reports/
 telegramintegration.md
-reliable.md
-seedMovie.js
 
 # App downloads are published as GitHub releases, not committed
 download/

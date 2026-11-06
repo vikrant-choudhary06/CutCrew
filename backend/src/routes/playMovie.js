@@ -52,7 +52,7 @@ router.get('/:imdb_id', async (req, res, next) => {
       // Saves streams to the title (or the requested episode) for the cache.
       const save = async result => {
         const now = new Date();
-        // Only vega-style providers have a page link; DesiFlix and MovieBox do not.
+        // Only vega-style providers have a page link; Stremio add-ons do not.
         const pageLink = result.candidate ? (series ? episodeFor(result.candidate, season, episode)?.link : result.candidate.defaultStreamLink) : undefined;
         if (series) {
           // Update only the requested episode. Concurrent requests for other episodes keep their caches.

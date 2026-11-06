@@ -66,7 +66,6 @@ async function searchByGenre(genre, limit = 15) {
   // Some scraper deployments respond 200 with an empty result for valid genres.
   return titles.length ? titles : (await fallbackGenre())[0];
 }
-async function fetchMovieFromScraper(title) { return searchMovies(title); }
 async function fetchTrending(type, limit = 10) {
   if (!['movie', 'series'].includes(type)) throw new Error('Unsupported catalogue type');
   const response = await axios.get(CINEMETA_URL + '/catalog/' + type + '/top.json');
@@ -93,4 +92,4 @@ async function fetchDiscover(type, genre, skip = 0) {
       backdrop_url: meta.background || '', release_date: meta.released || '', runtime_minutes: parseInt(meta.runtime,10)||null, content_rating: meta.contentRating || '',
       genres: meta.genres || [], languages: Array.isArray(meta.languages) ? meta.languages : typeof meta.language === 'string' ? meta.language.split(',').map(x => x.trim()) : [], plot: meta.description || '', metadata_complete: false }));
 }
-module.exports = { fetchMovieDetails, searchMovies, searchByGenre, fetchMovieFromScraper, mapCinemeta, selectCinemeta, fetchTrending, fetchDiscover };
+module.exports = { fetchMovieDetails, searchMovies, searchByGenre, mapCinemeta, selectCinemeta, fetchTrending, fetchDiscover };

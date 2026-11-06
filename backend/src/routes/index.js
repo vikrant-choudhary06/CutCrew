@@ -12,7 +12,6 @@ router.use('/playback',require('./playbackMetrics'));
 router.use('/movies/trending', require('./getTrendingMovies'));
 router.use('/series/trending', require('./getTrendingSeries'));
 router.use('/movies/search', require('./searchMovies'));
-router.use('/movies/scrape', require('./scrapeMovie'));
 router.use('/admin/storage', require('../middlewares/adminAuth'), require('./adminStorage')); // Telegram storage admin
 router.use('/admin', require('./admin'));
 router.use('/logs', require('./logs'));
@@ -21,7 +20,6 @@ router.get('/media/info', require('../services/mediaInfo'));
 router.use('/stored-media', require('./storedMedia')); // Telegram storage gateway; 404 while disabled
 router.use('/stored/available', require('./storedAvailable')); // titles with a Ready stored copy ("Instant")
 router.use('/movies/play', require('./playMovie')); // Added before general /movies endpoints
-router.use('/movies', require('./getAllMovies'));
 router.use('/movies', require('./getMovieById')); // This will match GET /movies/:imdb_id
 
 router.get('/health', (req, res) => {

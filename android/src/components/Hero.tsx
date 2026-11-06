@@ -6,16 +6,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { backdropPreview, backdropUrl, isAnime, isSeries, logoUrl, runtimeLabel, type Title } from '../lib/api';
 import { useLibrary } from '../lib/library';
 import { C, F } from '../lib/theme';
-import { useFetch } from '../lib/useFetch';
 import { openTitle, openWatch } from './cards';
 import { Button, RoundButton, useSizes } from './ui';
 
-// `items` comes from /api/home; without it the hero loads /api/featured itself.
-export function Hero({ items: given }: { items?: Title[] } = {}) {
+// `items` comes from /api/home.
+export function Hero({ items: given }: { items: Title[] }) {
   const { width, height, tv, tablet, gutter } = useSizes();
   const lib = useLibrary();
-  const { data } = useFetch<{ data: Title[] }>(given ? null : '/api/featured', { timeout: 25000 });
-  const items = useMemo(() => (given || data?.data || []).filter(x => x.imdb_id && x.backdrop_url).slice(0, 5), [given, data]);
+  const items = useMemo(() => given.filter(x => x.imdb_id && x.backdrop_url).slice(0, 5), [given]);
   const [index, setIndex] = useState(0);
   const [logoFailed, setLogoFailed] = useState<Record<string, boolean>>({});
 

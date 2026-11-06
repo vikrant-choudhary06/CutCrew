@@ -21,7 +21,6 @@ export const getMeta = async function ({
     const synopsis =
       $(".content-section").find("p").first().text().trim() || "";
 
-    // Links
     const links: Link[] = [];
 
     if (type === "series") {
@@ -40,7 +39,6 @@ export const getMeta = async function ({
               .find(".episode-links")
               .find("a:contains('HubCloud')")
               .attr("href");
-            // console.log("title⭐", title, "link", link);
             if (title && link) {
               directLinks.push({ title, link });
             }
@@ -62,13 +60,11 @@ export const getMeta = async function ({
           .find(".grid.grid-cols-2.gap-2")
           .find("a:contains('HubCloud')")
           .attr("href");
-        // console.log("title⭐", title, "link", link);
         if (title && link) {
           links.push({ title, directLinks: [{ title, link }] });
         }
       });
     }
-    // console.log('multi meta', links);
 
     return {
       title,
@@ -79,7 +75,7 @@ export const getMeta = async function ({
       linkList: links,
     };
   } catch (err) {
-    console.error(err);
+    console.error("4khdhub meta:", (err as any)?.message || err);
     return {
       title: "",
       synopsis: "",

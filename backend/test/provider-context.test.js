@@ -26,12 +26,13 @@ test('provider SHA-1 compatibility uses the real crypto implementation', async (
   assert.equal(await getProviderContext().Aes.sha1('abc'), 'a9993e364706816aba3e25717850c26c9cd0d89d');
 });
 
-test('default providers are limited to the live-verified shortlist', () => {
+// Needs the built providers (cd provider && npm run build); Docker builds them itself.
+const built = require('node:fs').existsSync(require('node:path').join(__dirname, '../../provider/dist/4khdhub/stream.js'));
+test('default providers are limited to the live-verified shortlist', { skip: !built && 'providers are not built' }, () => {
   const { getAvailableProvidersLocal } = require('../src/utils/providerHelper');
-  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'hdhub4u', 'vega', 'luxMovies', 'internetArchive']);
-  assert.ok(getAvailableProvidersLocal({ includeUnverified: true }).length > 2);
-  process.env.ENABLED_PROVIDERS = 'vega,internetArchive';
-  try { assert.deepEqual(getAvailableProvidersLocal(), ['vega', 'internetArchive']); }
+  assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'internetArchive']);
+  process.env.ENABLED_PROVIDERS = 'internetArchive';
+  try { assert.deepEqual(getAvailableProvidersLocal(), ['internetArchive']); }
   finally { delete process.env.ENABLED_PROVIDERS; }
 });
 
@@ -41,7 +42,7 @@ test('providers read their own settings through kvStore', async () => {
   process.env.PROVIDER_SETTINGS = JSON.stringify({ internetArchive: { licenses: 'publicDomain' } });
   try {
     const archive = getProviderContext(undefined, 'internetArchive').kvStore;
-    const other = getProviderContext(undefined, 'vega').kvStore;
+    const other = getProviderContext(undefined, '4khdhub').kvStore;
     assert.equal(await archive.get('licenses'), 'publicDomain');
     assert.equal(await archive.get('sort'), undefined, 'unset keys fall back to the provider default');
     assert.equal(await other.get('licenses'), undefined, 'settings are per provider');

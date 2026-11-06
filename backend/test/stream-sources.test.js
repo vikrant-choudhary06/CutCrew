@@ -35,14 +35,14 @@ test('DesiFlix titles give quality, size and audio languages', () => {
 });
 
 test('addon streams keep their request headers, and unsafe links are dropped', () => {
-  const stream = sources.fromAddon({ url: 'https://cdn.example/v.mp4', title: '4K HDR', behaviorHints: { proxyHeaders: { request: { Referer: 'https://moviebox.ph/' } } } }, 'moviebox');
+  const stream = sources.fromAddon({ url: 'https://cdn.example/v.mp4', title: '4K HDR', behaviorHints: { proxyHeaders: { request: { Referer: 'https://moviebox.ph/' } } } }, 'censored');
   assert.deepEqual(stream.headers, { Referer: 'https://moviebox.ph/' });
   assert.equal(stream.height, 2160);
   assert.equal(stream.quality, '4K');
   assert.equal(stream.type, 'mp4');
-  assert.equal(sources.fromAddon({ url: 'https://user:pass@cdn.example/v.mp4' }, 'moviebox'), null);
-  assert.equal(sources.fromAddon({ url: 'ftp://cdn.example/v.mp4' }, 'moviebox'), null);
-  assert.equal(sources.fromAddon({ title: 'no link' }, 'moviebox'), null);
+  assert.equal(sources.fromAddon({ url: 'https://user:pass@cdn.example/v.mp4' }, 'censored'), null);
+  assert.equal(sources.fromAddon({ url: 'ftp://cdn.example/v.mp4' }, 'censored'), null);
+  assert.equal(sources.fromAddon({ title: 'no link' }, 'censored'), null);
   assert.equal(sources.typeOf('https://x/master.m3u8'), 'hls');
 });
 
@@ -76,39 +76,15 @@ test('the Stremio adapter calls the right URL for movies and episodes', async ()
   assert.match(failed.error, /HTTP 500/);
 });
 
-test('the Doom adapter maps IMDb to TMDB and passes the known title', async () => {
-  sources._doomModules.clear(); sources._tmdbCache.clear();
-  let args;
-  const load = () => ({ getStreams: async (...given) => { args = given; return [{ url: 'https://cdn.example/m.mp4', title: '1080p [Hindi]' }]; } });
-  const fetch = async url => { assert.match(url, /cinemeta.*\/meta\/series\/tt0903747\.json/); return json({ meta: { moviedb_id: 1396 } }); };
-  const result = await sources.runSource('moviebox', episodeTitle, { load, fetch, probe: keep, skipCodec: true });
-  assert.deepEqual(args.slice(0, 5), ['1396', 'tv', 2, 5, 'tt0903747']);
-  assert.equal(args[5].title, 'Breaking Bad');
-  assert.equal(args[5].year, '2008');
-  assert.equal(result.streams[0].provider, 'moviebox');
-  sources._doomModules.clear();
-});
-
 test('a source\'s Hindi/English streams are probed before other languages', async () => {
-  sources._doomModules.clear(); sources._tmdbCache.clear();
-  const load = () => ({ getStreams: async () => [
+  const fetch = async () => json({ streams: [
     { url: 'https://cdn.example/fr.mp4', title: '1080p French' },
     { url: 'https://cdn.example/hi.mp4', title: '720p Hindi' },
     { url: 'https://cdn.example/hien.mp4', title: '1080p Hindi English' },
   ] });
   let probed;
-  await sources.runSource('moviebox', movie, { load, fetch: async () => json({ meta: {} }), probe: async streams => { probed = streams.map(s => s.link); return streams; } });
+  await sources.runSource('desiflix', movie, { fetch, probe: async streams => { probed = streams.map(s => s.link); return streams; }, skipCodec: true });
   assert.deepEqual(probed, ['https://cdn.example/hien.mp4', 'https://cdn.example/hi.mp4', 'https://cdn.example/fr.mp4']);
-  sources._doomModules.clear(); sources._tmdbCache.clear();
-});
-
-test('a TMDB lookup failure still lets the Doom source run with the title', async () => {
-  sources._doomModules.clear(); sources._tmdbCache.clear();
-  let tmdb = 'unset';
-  const load = () => ({ getStreams: async id => { tmdb = id; return []; } });
-  await sources.runSource('moviebox', movie, { load, fetch: async () => { throw new Error('offline'); }, probe: keep, skipCodec: true });
-  assert.equal(tmdb, null);
-  sources._doomModules.clear(); sources._tmdbCache.clear();
 });
 
 test('a slow source is cut off at its time limit without throwing', async () => {
@@ -122,19 +98,19 @@ test('a slow source is cut off at its time limit without throwing', async () => 
 test('duplicates are removed: same link, same host and path, or same file and size', () => {
   const a = { link: 'https://h.example/f/Jawan.mkv?token=1', filename: 'Jawan.2023.1080p.mkv', size: 3.43e9, provider: 'desiflix' };
   const b = { link: 'https://h.example/f/Jawan.mkv?token=2', provider: 'pengu' };
-  const c = { link: 'https://other.example/x', filename: 'jawan.2023.1080p.mp4', size: 3.44e9, provider: 'moviebox' };
-  const d = { link: 'https://other.example/y', filename: 'Jawan.2023.720p.mkv', size: 1.2e9, provider: 'moviebox' };
+  const c = { link: 'https://other.example/x', filename: 'jawan.2023.1080p.mp4', size: 3.44e9, provider: 'censored' };
+  const d = { link: 'https://other.example/y', filename: 'Jawan.2023.720p.mkv', size: 1.2e9, provider: 'censored' };
   assert.deepEqual(sources.dedupe([a, b, c, d]).map(s => s.link), [a.link, d.link]);
 });
 
 test('ranking: web-playable first, then source order, quality, and Hindi/English audio', () => {
-  const order = ['desiflix', 'moviebox', '4khdhub'];
+  const order = ['desiflix', 'censored', '4khdhub'];
   const list = [
     { link: '1', provider: 'desiflix', type: 'mkv', height: 2160, audio: ['Hindi'] },
     { link: '2', provider: '4khdhub', type: 'mp4', height: 2160, audio: [] },
-    { link: '3', provider: 'moviebox', type: 'mp4', height: 720, audio: ['Hindi'] },
-    { link: '4', provider: 'moviebox', type: 'mp4', height: 1080, audio: ['English'] },
-    { link: '5', provider: 'moviebox', type: 'mp4', height: 1080, audio: ['Hindi', 'English'] },
+    { link: '3', provider: 'censored', type: 'mp4', height: 720, audio: ['Hindi'] },
+    { link: '4', provider: 'censored', type: 'mp4', height: 1080, audio: ['English'] },
+    { link: '5', provider: 'censored', type: 'mp4', height: 1080, audio: ['Hindi', 'English'] },
   ];
   assert.deepEqual(sources.rank(list, order).map(s => s.link), ['5', '4', '3', '2', '1']);
   // On the web, a 720p MKV (passed through) comes before a 1080p or HEVC MKV (re-encoded).
@@ -180,14 +156,13 @@ test('everything is waited for while nothing plays yet, and excluded sources are
 
 
 
-test('Internet Archive only runs for old films, and MovieBox gets a longer limit', async () => {
+test('Internet Archive only runs for old films', async () => {
   assert.equal(sources.skipReason('internetArchive', { release_year: 2014 }), 'only for films up to 1980');
   assert.equal(sources.skipReason('internetArchive', { release_year: 1922 }), '');
-  assert.equal(sources.skipReason('moviebox', { release_year: 2014 }), '');
+  assert.equal(sources.skipReason('4khdhub', { release_year: 2014 }), '');
   const skipped = await sources.runSource('internetArchive', { imdb_id: 'tt0816692', title: 'Interstellar', release_year: 2014, title_type: 'Movie' });
   assert.deepEqual(skipped.streams, []);
   assert.equal(skipped.ms, 0);
-  assert.equal(sources.SOURCES.moviebox.timeoutMs(), 25000);
 });
 
 test('only direct url streams are used; torrents, YouTube, web pages and notices are skipped', () => {
@@ -203,9 +178,8 @@ test('STREMIO_ADDONS sets the add-ons; PenguPlay needs a signed-in link; SOURCE_
   const file = path.join(dir, 'state.json');
   withEnv({
     STREMIO_ADDONS: 'desiflix=https://d.example/manifest.json,hdhub=https://h.example/,censored=https://c.example,pengu=https://pengu.uk,bad=ftp://x',
-    STREAM_SOURCES: 'desiflix,hdhub,censored,pengu,moviebox,4khdhub,internetArchive,hdhub4u,nope',
-    ENABLED_PROVIDERS: '4khdhub,hdhub4u', SOURCE_STATE_FILE: file, SOURCE_CENSORED: undefined, SOURCE_HDHUB: undefined,
-    MOVIEBOX_KEY_B64: 'test-key', MOVIEBOX_KEY_B64_ALT: 'test-key-2',
+    STREAM_SOURCES: 'desiflix,hdhub,censored,pengu,4khdhub,internetArchive,nope',
+    ENABLED_PROVIDERS: '4khdhub', SOURCE_STATE_FILE: file, SOURCE_CENSORED: undefined, SOURCE_HDHUB: undefined,
   }, () => {
     sources.resetStateCache();
     assert.deepEqual(Object.keys(sources.stremioAddons()), ['desiflix', 'hdhub', 'censored', 'pengu']);
@@ -217,7 +191,7 @@ test('STREMIO_ADDONS sets the add-ons; PenguPlay needs a signed-in link; SOURCE_
     assert.equal(sources.sourceDef('pengu').probeTimeoutMs(), 12000);
     assert.equal(sources.sourceDef('hdhub').probeTimeoutMs(), undefined);
     // pengu.uk without a config path only offers a sign-in notice.
-    assert.deepEqual(sources.sourceOrder(), ['desiflix', 'hdhub', 'censored', 'moviebox', '4khdhub', 'hdhub4u']);
+    assert.deepEqual(sources.sourceOrder(), ['desiflix', 'hdhub', 'censored', '4khdhub']);
     process.env.STREMIO_ADDONS += ',pengu=https://pengu.uk/%7Bmy-config%7D';
     assert.ok(sources.sourceOrder().includes('pengu'));
     process.env.SOURCE_CENSORED = 'off';
@@ -226,8 +200,6 @@ test('STREMIO_ADDONS sets the add-ons; PenguPlay needs a signed-in link; SOURCE_
     sources.resetStateCache();
     assert.ok(!sources.sourceOrder().includes('hdhub'), 'switched off by the weekly check');
     assert.ok(sources.sourceOrder({ includeOff: true }).includes('hdhub'), 'but the weekly check still tests it');
-    delete process.env.MOVIEBOX_KEY_B64;
-    assert.ok(!sources.sourceOrder().includes('moviebox'), 'MovieBox needs its keys');
   });
   sources.resetStateCache();
   fs.rmSync(dir, { recursive: true, force: true });
@@ -259,29 +231,9 @@ test('expired links are dropped by the probe and the next link is used', async (
   assert.equal(probed.length, 3);
 });
 
-test('IMDb to TMDB comes from Cinemeta and is cached', async () => {
-  sources._tmdbCache.clear();
-  let calls = 0;
-  const fetch = async url => { calls++; assert.match(url, /\/meta\/movie\/tt1375666\.json$/); return json({ meta: { moviedb_id: 27205 } }); };
-  assert.equal(await sources.tmdbIdFor('tt1375666', false, { fetch }), '27205');
-  assert.equal(await sources.tmdbIdFor('tt1375666', false, { fetch }), '27205');
-  assert.equal(calls, 1);
-  sources._tmdbCache.clear();
-});
-
-test('a MovieBox clip shorter than a film is dropped; unknown length is allowed', async () => {
-  sources._doomModules.clear(); sources._tmdbCache.clear();
-  const load = () => ({ getStreams: async () => [{ url: 'https://cdn.example/promo.mp4', title: '1080p Hindi' }] });
-  const fetch = async () => json({ meta: {} });
-  const promo = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => 22.7 });
-  assert.deepEqual(promo.streams, []);
-  const film = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => 9900 });
-  assert.equal(film.streams.length, 1);
-  const unknown = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => null });
-  assert.equal(unknown.streams.length, 1);
+test('the weekly check counts films under 10 minutes and episodes under 3 as clips', () => {
   assert.equal(sources.minimumLength({ title_type: 'TV Series' }), 180);
   assert.equal(sources.minimumLength({ title_type: 'Movie' }), 600);
-  sources._doomModules.clear(); sources._tmdbCache.clear();
 });
 
 test('MKV codecs are read so HEVC / 10-bit files rank after H.264 on the web', async () => {
@@ -317,14 +269,4 @@ test('ffprobe output becomes a length in seconds', async () => {
   assert.ok(args.includes('-headers') && args.includes('Referer: https://r/\r\n'));
   assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => { throw new Error('no ffprobe'); } }), null);
   assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => 'N/A' }), null);
-});
-
-test('the vendored MovieBox keeps no keys in git, and Pengu/Flix copies are gone', () => {
-  const dir = path.join(__dirname, '../vendor/doom-addon');
-  assert.deepEqual(fs.readdirSync(dir).sort(), ['LICENSE', 'SOURCE.md', 'moviebox.js']);
-  const moviebox = fs.readFileSync(path.join(dir, 'moviebox.js'), 'utf8');
-  assert.match(moviebox, /var TMDB_API_KEY = process\.env\.TMDB_API_KEY \|\| "";/);
-  assert.match(moviebox, /var KEY_B64_DEFAULT = process\.env\.MOVIEBOX_KEY_B64 \|\| "";/);
-  assert.match(moviebox, /var KEY_B64_ALT = process\.env\.MOVIEBOX_KEY_B64_ALT \|\| "";/);
-  assert.doesNotMatch(moviebox, /api_key=[0-9a-f]{32}|"[A-Za-z0-9+/]{40,}={0,2}"/);
 });

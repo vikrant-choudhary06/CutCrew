@@ -321,4 +321,4 @@ async function runWorker(ctx, { maxJobs = Infinity } = {}) {
   return results;
 }
 
-module.exports = { runJob, runWorker, classify, ImportError, STAGE_STATE };
+module.exports = { runJob, runWorker, classify, ImportError };

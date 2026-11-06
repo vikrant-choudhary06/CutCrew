@@ -15,7 +15,6 @@ export const getPosts = async function ({
   const { getBaseUrl, cheerio } = providerContext;
   const baseUrl = await getBaseUrl("4khdhub");
   const url = `${baseUrl + filter}/page/${page}`;
-  console.log("4khdhubGetPosts url", url);
   return posts({ url, signal, cheerio });
 };
 
@@ -37,7 +36,6 @@ export const getSearchPosts = async function ({
     page == 1
       ? `${baseUrl}/?s=${searchQuery}`
       : `${baseUrl}/page/${page}?s=${searchQuery}`;
-  console.log("4khdhubGetSearchPosts url", url);
   return posts({ url, signal, cheerio });
 };
 
@@ -61,14 +59,6 @@ async function posts({
         const title = $(element).find(".movie-card-title").text();
         const link = $(element).attr("href");
         const image = $(element).find("img").attr("src");
-        // console.log(
-        //   "4khdhubGetPosts title",
-        //   title,
-        //   "link",
-        //   link,
-        //   "image",
-        //   image
-        // );
         if (title && link && image) {
           catalog.push({
             title: title,
@@ -79,7 +69,7 @@ async function posts({
       });
     return catalog;
   } catch (err) {
-    console.error("4khdhubGetPosts error ", err);
+    console.error("4khdhub posts:", (err as any)?.message || err);
     return [];
   }
 }

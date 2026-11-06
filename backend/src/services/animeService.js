@@ -152,4 +152,4 @@ function status() {
   return { playback: playbackEnabled(), providers: providerIds(), bundle: Boolean(load()) };
 }
 
-module.exports = { play, status, findMedia, pickResult, searchTerms, anilistIdFromImage, toStream, normalize, playbackEnabled, providerIds, _memo: memo };
+module.exports = { play, status, findMedia, pickResult, searchTerms, anilistIdFromImage, toStream, normalize, playbackEnabled, providerIds };

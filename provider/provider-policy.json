@@ -1,12 +1,9 @@
 {
   "defaultProviders": [
     "4khdhub",
-    "hdhub4u",
-    "vega",
-    "luxMovies",
     "internetArchive"
   ],
-  "description": "Default providers, in the order they are tried, from the end-to-end check on 2026-11-05 (search, title match, stream and real video bytes for Inception, Interstellar, Jawan and Pathaan). internetArchive is last: it only has public-domain and Creative Commons films (verified on Night of the Living Dead, Nosferatu, The General, His Girl Friday and Charade). vega and luxMovies refuse data-centre IPs, so hosted servers may narrow this list with ENABLED_PROVIDERS.",
+  "description": "Default providers, in the order they are tried. internetArchive is last: it only has public-domain and Creative Commons films. hdhub4u (domain gone), vega and luxMovies (refuse data-centre IPs) were removed on 2026-11-07.",
   "verification": {
     "movie": "tt1375666",
     "series": "tt0944947",
@@ -19,10 +16,8 @@
     "hdhub",
     "censored",
     "pengu",
-    "moviebox",
     "4khdhub",
-    "internetArchive",
-    "hdhub4u"
+    "internetArchive"
   ],
-  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix, hdhub, censored and pengu are Stremio add-ons listed in STREMIO_ADDONS (pengu only with your own signed-in link); moviebox is the Doom-addon provider in backend/vendor/doom-addon (needs its keys in .env); 4khdhub, internetArchive and hdhub4u are vega-style providers and also need ENABLED_PROVIDERS. vega and luxMovies refuse data-centre IPs, so they stay out of the server list but work on a PC."
+  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix, hdhub, censored and pengu are Stremio add-ons listed in STREMIO_ADDONS (pengu only with your own signed-in link); 4khdhub and internetArchive are vega-style providers and also need ENABLED_PROVIDERS."
 }

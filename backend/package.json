@@ -8,7 +8,6 @@
     "providers:check": "node scripts/check-providers.cjs",
     "db:check": "node scripts/db-check.cjs",
     "db:migrate": "node scripts/db-check.cjs",
-    "db:import": "node scripts/migrate-mongo.cjs",
     "db:local:start": "node scripts/local-db.cjs start",
     "db:local:stop": "node scripts/local-db.cjs stop",
     "db:local:status": "node scripts/local-db.cjs status",
@@ -29,7 +28,6 @@
     "axios": "^1.17.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
-    "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",
@@ -38,7 +36,6 @@
     "teleproto": "1.232.0"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.12",
-    "mongodb": "^7.7.0"
+    "@electric-sql/pglite": "^0.5.12"
   }
 }

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// End-to-end check of every playback source (vega, Stremio and Doom-style):
+// End-to-end check of every playback source (vega-style and Stremio):
 // find streams for real titles, then read real video bytes. Sources run in
 // parallel per title, with the same time limits as playback.
 //   node scripts/check-sources.cjs [--titles="tt1375666|Inception|2010;tt0903747|Breaking Bad|2008|1|1"]
-//     [--sources=desiflix,moviebox] [--report-dir=dir] [--report=name.json] [--update-state]
+//     [--sources=desiflix,hdhub] [--report-dir=dir] [--report=name.json] [--update-state]
 // --update-state (used by the weekly job) records failures per source: a source
 // with no playable stream for SOURCE_AUTO_DISABLE_AFTER weekly checks in a row
 // (default 2) is skipped by playback until a later check passes.

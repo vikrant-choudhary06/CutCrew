@@ -11,12 +11,10 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.0",
     "hls.js": "^1.7.3",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.17.0",
-    "tailwindcss": "^4.3.0"
+    "react-router-dom": "^7.17.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

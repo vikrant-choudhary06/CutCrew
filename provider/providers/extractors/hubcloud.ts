@@ -52,8 +52,6 @@ export async function hubcloudExtractor(
   try {
     headers["Cookie"] =
       "ext_name=ojplmecpdpgccookcobabopnaifgidhf; xla=s4t; cf_clearance=woQrFGXtLfmEMBEiGUsVHrUBMT8s3cmguIzmMjmvpkg-1770053679-1.2.1.1-xBrQdciOJsweUF6F2T_OtH6jmyanN_TduQ0yslc_XqjU6RcHSxI7.YOKv6ry7oYo64868HYoULnVyww536H2eVI3R2e4wKzsky6abjPdfQPxqpUaXjxfJ02o6jl3_Vkwr4uiaU7Wy596Vdst3y78HXvVmKdIohhtPvp.vZ9_L7wvWdce0GRixjh_6JiqWmWMws46hwEt3hboaS1e1e4EoWCvj5b0M_jVwvSxBOAW5emFzvT3QrnRh4nyYmKDERnY";
-    console.log("hubcloudExtractor", link);
-    // console.log("headers", headers);
     const baseUrl = link.split("/").slice(0, 3).join("/");
     const streamLinks: any[] = [];
     const vLinkRes = await axios(`${link}`, { headers, signal });
@@ -63,10 +61,8 @@ export async function hubcloudExtractor(
       extractUrlFromScript(vLinkText) ||
       $vLink(".fa-file-download.fa-lg").parent().attr("href") ||
       link;
-    console.log("vcloudLink", vcloudLink);
     if (vcloudLink?.startsWith("/")) {
       vcloudLink = `${baseUrl}${vcloudLink}`;
-      console.log("New vcloudLink", vcloudLink);
     }
     const vcloudRes = await fetch(vcloudLink, {
       headers,
@@ -75,7 +71,6 @@ export async function hubcloudExtractor(
     });
     const vcloudText = await vcloudRes.text();
     const $ = cheerio.load(vcloudText);
-    // console.log("vcloudRes", $.text());
 
     const linkClass = $(".btn-success.btn-lg.h6,.btn-danger,.btn-secondary");
     for (const element of linkClass) {
@@ -84,17 +79,12 @@ export async function hubcloudExtractor(
 
       switch (true) {
         case link?.includes("pixeld"):
-          console.log("Pixeldrain link found:", link);
           if (!link?.includes("api")) {
             const redirectedPixelDrainUrl = getRedirectedPixelDrainUrl(
               vLinkText,
               vcloudText,
             );
             if (redirectedPixelDrainUrl) {
-              console.log(
-                "Special case for token negn6f",
-                redirectedPixelDrainUrl,
-              );
               link = redirectedPixelDrainUrl;
             }
 
@@ -159,7 +149,6 @@ export async function hubcloudExtractor(
               type: "mkv",
             });
           } catch (error) {
-            console.log("hubcloudExtractor error in hubcloud link: ", error);
           }
           break;
 
@@ -191,10 +180,8 @@ export async function hubcloudExtractor(
       }
     }
 
-    console.log("streamLinks", streamLinks);
     return streamLinks;
   } catch (error: any) {
-    console.log("hubcloudExtractor error: ", error?.message || error);
     return [];
   }
 }

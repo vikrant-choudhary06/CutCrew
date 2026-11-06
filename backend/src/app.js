@@ -57,10 +57,6 @@ app.get('/admin', require('./middlewares/adminAuth'), (req, res) => {
             <h3>Registered Users</h3>
             <p id="reg-users">Loading...</p>
           </div>
-          <div class="card">
-            <h3>Live Online Viewers</h3>
-            <p id="online-users" style="color: #4ade80;">Loading...</p>
-          </div>
         </div>
         <div class="terminal">
           <div class="terminal-header">node server.js — live logs</div>
@@ -75,7 +71,6 @@ app.get('/admin', require('./middlewares/adminAuth'), (req, res) => {
             const json = await res.json();
             if (json.status === 'success') {
               document.getElementById('reg-users').innerText = json.data.registeredUsers;
-              document.getElementById('online-users').innerText = json.data.onlineUsers;
             }
           } catch(e) {}
         }

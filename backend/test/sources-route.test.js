@@ -1,5 +1,5 @@
 // The play route with the multi-source path: results from sources that have no
-// provider page (DesiFlix, MovieBox) are saved without one.
+// provider page (Stremio add-ons) are saved without one.
 delete process.env.MULTI_SOURCE;
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -22,21 +22,21 @@ function title(extra = {}) {
   movie.toObject = () => ({ ...movie });
   return movie;
 }
-const stream = { link: 'https://cdn.example/jawan.mp4', type: 'mp4', provider: 'moviebox', server: 'MovieBox · 1080p', headers: {}, subtitles: [] };
+const stream = { link: 'https://cdn.example/jawan.mp4', type: 'mp4', provider: 'censored', server: 'CENSORED · 1080p', headers: {}, subtitles: [] };
 
 test('a movie found only by non-vega sources plays and is cached without a page link', async () => {
   const saved = [];
   Movie.findOne = async () => title();
   Movie.findOneAndUpdate = async (_q, change) => title(change.$set);
   Movie.updateOne = async (query, change) => { saved.push(change.$set); return { matchedCount: 1 }; };
-  collectImpl = async () => ({ streams: [stream], provider: 'moviebox', candidate: null, sources: [{ source: 'moviebox', streams: 1 }] });
+  collectImpl = async () => ({ streams: [stream], provider: 'censored', candidate: null, sources: [{ source: 'censored', streams: 1 }] });
   const result = await get('/api/movies/play/tt15354916?refresh=1');
   assert.equal(result.status, 200);
-  assert.equal(result.body.provider, 'moviebox');
+  assert.equal(result.body.provider, 'censored');
   assert.equal(result.body.streams.length, 1);
-  assert.deepEqual(result.body.sources, [{ source: 'moviebox', streams: 1 }]);
+  assert.deepEqual(result.body.sources, [{ source: 'censored', streams: 1 }]);
   assert.equal(saved.length, 1);
-  assert.equal(saved[0].provider_name, 'moviebox');
+  assert.equal(saved[0].provider_name, 'censored');
   assert.ok(!('defaultStreamLink' in saved[0]), 'no page link is written');
 });
 
@@ -76,17 +76,16 @@ test('cached streams from a switched-off source are not served; playback finds n
   const sourceProbe = require('../src/services/sourceProbe');
   const originalFilter = sourceProbe.filterPlayable;
   sourceProbe.filterPlayable = async streams => streams;
-  const promo = { link: 'https://cdn.example/promo.mp4', type: 'mp4', provider: 'moviebox', server: 'MovieBox · 480p' };
-  Movie.findOne = async () => title({ provider_name: 'moviebox', stream_data: [promo], stream_fetched_at: new Date() });
+  const promo = { link: 'https://cdn.example/promo.mp4', type: 'mp4', provider: 'censored', server: 'CENSORED · 480p' };
+  Movie.findOne = async () => title({ provider_name: 'censored', stream_data: [promo], stream_fetched_at: new Date() });
   Movie.findOneAndUpdate = async () => title();
   Movie.updateOne = async () => ({ matchedCount: 1 });
   let collected = 0;
   collectImpl = async () => { collected++; return { streams: [{ ...stream, link: 'https://cdn.example/real.mkv', type: 'mkv', provider: 'desiflix' }], provider: 'desiflix', candidate: null, sources: [] }; };
   try {
-    const saved = process.env.MOVIEBOX_KEY_B64;
-    delete process.env.MOVIEBOX_KEY_B64; // MovieBox is off without its keys
+    process.env.SOURCE_CENSORED = 'off'; // the cached streams' source is now off
     const result = await get('/api/movies/play/tt15354916');
-    if (saved !== undefined) process.env.MOVIEBOX_KEY_B64 = saved;
+    delete process.env.SOURCE_CENSORED;
     assert.equal(result.status, 200);
     assert.equal(result.body.cached, false);
     assert.equal(result.body.provider, 'desiflix');

@@ -56,7 +56,7 @@ function clean(input) {
   return JSON.parse(JSON.stringify(result));
 }
 const defaults = () => ({ _id: randomUUID(), metadata_complete: false, seasons: [], genres: [], country: [], cast: [],
-  streaming_url: '', defaultStreamLink: '', provider_name: '', local_poster_path: '', local_backdrop_path: '' });
+  streaming_url: '', defaultStreamLink: '', provider_name: '' });
 async function write(filter, update, options = {}) {
   const id = filter.imdb_id;
   if (!/^tt\d{5,12}$/.test(id || '')) throw new Error('Invalid IMDb ID');

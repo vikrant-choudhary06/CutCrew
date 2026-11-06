@@ -32,7 +32,7 @@ function run({ timeoutMs = 45 * 60000 } = {}) {
       `--report-dir=${reportDir()}`, `--report=${REPORT}`], env, timeoutMs);
     // Anime sources: ten popular shows, episode 1.
     const anime = await runScript(['scripts/check-anime.cjs', `--report-dir=${reportDir()}`, `--report=${ANIME_REPORT}`], process.env, 20 * 60000);
-    // Every playback source (DesiFlix, MovieBox, vega providers…). Sources that
+    // Every playback source (Stremio add-ons and vega-style providers). Sources that
     // fail two weekly checks in a row are switched off until they pass again.
     const playback = await runScript(['scripts/check-sources.cjs', `--report-dir=${reportDir()}`, `--report=${SOURCES_REPORT}`, '--update-state'], process.env, 30 * 60000);
     return movies && anime && playback;

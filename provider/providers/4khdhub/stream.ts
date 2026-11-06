@@ -24,11 +24,8 @@ export async function getStream({
     const text = res.data;
     const encryptedString = text.split("s('o','")?.[1]?.split("',180")?.[0];
     const decodedString: any = decodeString(encryptedString) || link;
-    console.log("decodedString", decodedString);
     link = safeAtob(decodedString?.o) || link;
-    console.log("Decoded link", link);
     const redirectLink = await getRedirectLinks(link, signal, headers);
-    console.log("redirectLink", redirectLink);
     if (redirectLink.includes("hubcloud") || redirectLink.includes("/drive/")) {
       return await hubcloudExtractor(
         redirectLink,
@@ -70,7 +67,6 @@ export async function getStream({
       headers,
     );
   } catch (error: any) {
-    console.log("hd hub 4 getStream error: ", error);
     return [];
   }
 }
@@ -129,14 +125,10 @@ export async function getRedirectLinks(
 
     var match;
     while ((match = regex.exec(resText)) !== null) {
-      // console.log(match[1]);
       combinedString += match[1];
     }
-    // console.log(decode(combinedString));
     const decodedString = decode(pen(decode(decode(combinedString))));
-    // console.log(decodedString);
     const data = JSON.parse(decodedString);
-    console.log(data);
     const token = encode(data?.data);
     const blogLink = data?.wp_http1 + "?re=" + token;
     // abort timeout on signal
@@ -145,24 +137,19 @@ export async function getRedirectLinks(
     });
 
     await wait;
-    console.log("blogLink", blogLink);
 
     let vcloudLink = "Invalid Request";
     while (vcloudLink.includes("Invalid Request")) {
       const blogRes = await fetch(blogLink, { headers, signal });
       const blogResText = (await blogRes.text()) as any;
-      if (blogResText.includes("Invalid Request")) {
-        console.log(blogResText);
-      } else {
+      if (!blogResText.includes("Invalid Request")) {
         vcloudLink = blogResText.match(/var reurl = "([^"]+)"/) || "";
         break;
       }
     }
 
-    // console.log('vcloudLink', vcloudLink?.[1]);
     return blogLink || link;
   } catch (err) {
-    console.log("Error in getRedirectLinks", err);
     return link;
   }
 }
@@ -203,7 +190,7 @@ export function decodeString(encryptedString: string) {
     // Parse JSON
     return JSON.parse(decoded);
   } catch (error) {
-    console.error("Error decoding string:", error);
+    console.error("4khdhub: could not decode a link:", (error as any)?.message || error);
     return null;
   }
 }

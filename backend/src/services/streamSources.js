@@ -1,8 +1,7 @@
-// Multi-source playback. Three kinds of sources, one stream format:
+// Multi-source playback. Two kinds of sources, one stream format:
 //   vega    - CutCrew's provider modules (provider/dist), via attemptProvider()
 //   stremio - Stremio add-on APIs (/stream/<type>/<imdbId>.json): DesiFlix,
 //             HdHub, CENSORED, PenguPlay (listed in STREMIO_ADDONS)
-//   doom    - Doom-addon MovieBox (backend/vendor/doom-addon), getStreams(tmdbId, ...)
 // All enabled sources run in parallel, each with its own time limit. A slow or
 // failing source is skipped without holding up the others. Results are
 // probed, de-duplicated and ranked (web-playable first, then source order,
@@ -15,8 +14,7 @@ const { validateUrl } = require('./mediaService');
 const sourceProbe = require('./sourceProbe');
 const providerStatus = require('./providerStatus');
 
-const DOOM_DIR = path.resolve(__dirname, '../../vendor/doom-addon');
-const DEFAULT_ORDER = ['desiflix', 'hdhub', 'censored', 'pengu', 'moviebox', '4khdhub', 'internetArchive', 'hdhub4u'];
+const DEFAULT_ORDER = ['desiflix', 'hdhub', 'censored', 'pengu', '4khdhub', 'internetArchive'];
 const API_TIMEOUT_MS = Number(process.env.SOURCE_TIMEOUT_MS) || 10000;
 const VEGA_TIMEOUT_MS = Number(process.env.VEGA_SOURCE_TIMEOUT_MS) || 25000;
 const WAIT_MS = Number(process.env.SOURCE_WAIT_MS) || 10000;
@@ -55,14 +53,7 @@ function stremioAddons() {
   return addons;
 }
 
-// Doom-addon providers. MovieBox checks every stream it finds before
-// answering, so it gets longer; it needs its signing keys in .env.
-// verifyDuration: the first streams' length is checked (MovieBox has served a
-// short promo video instead of the film).
-const SOURCES = {
-  moviebox: { kind: 'doom', label: 'MovieBox', file: 'moviebox.js', verifyDuration: true, timeoutMs: () => Number(process.env.MOVIEBOX_TIMEOUT_MS) || 25000, configured: () => Boolean(process.env.MOVIEBOX_KEY_B64 && process.env.MOVIEBOX_KEY_B64_ALT) },
-};
-const sourceDef = id => stremioAddons()[id] || SOURCES[id] || null;
+const sourceDef = id => stremioAddons()[id] || null;
 
 // ---- Source list ---------------------------------------------------------
 
@@ -144,7 +135,7 @@ function typeOf(link, filename, declared) {
 // Not a film: notices such as "You must sign in", sales or support links.
 const PLACEHOLDER = /\b(sign[\s-]?in|log[\s-]?in|subscribe|upgrade|donate|support us|discount|sale|legacy users?)\b/i;
 
-// Stremio / Doom stream object -> CutCrew stream. Only direct `url` streams:
+// Stremio stream object -> CutCrew stream. Only direct `url` streams:
 // torrents (infoHash), YouTube (ytId) and web pages (externalUrl) are skipped.
 function fromAddon(item, source) {
   const link = item?.url;
@@ -172,23 +163,6 @@ function fromAddon(item, source) {
 
 // ---- Adapters --------------------------------------------------------------
 
-const tmdbCache = new Map();
-// IMDb -> TMDB id from Cinemeta (no TMDB key needed). Cached for a week.
-async function tmdbIdFor(imdbId, series, { fetch: get = fetch } = {}) {
-  const key = `${series ? 'series' : 'movie'}:${imdbId}`;
-  const hit = tmdbCache.get(key);
-  if (hit && hit.until > Date.now()) return hit.value;
-  let value = null;
-  try {
-    const response = await get(`https://v3-cinemeta.strem.io/meta/${series ? 'series' : 'movie'}/${imdbId}.json`, { signal: AbortSignal.timeout(6000) });
-    const meta = (await response.json())?.meta;
-    value = meta?.moviedb_id ? String(meta.moviedb_id) : null;
-  } catch { /* moviebox still works from the title; Pengu and Flix use the IMDb id */ }
-  if (tmdbCache.size > 5000) tmdbCache.delete(tmdbCache.keys().next().value);
-  tmdbCache.set(key, { value, until: Date.now() + (value ? 7 * 86400000 : 3600000) });
-  return value;
-}
-
 // Stremio stream id: tt123 for a movie, tt123:1:2 for an episode.
 function stremioId(imdbId, season, episode) {
   return season && episode ? `${imdbId}:${season}:${episode}` : imdbId;
@@ -202,21 +176,6 @@ async function stremioStreams(source, title, { signal, fetch: get = fetch } = {}
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const body = await response.json();
   return (Array.isArray(body?.streams) ? body.streams : []).map(item => fromAddon(item, source)).filter(Boolean);
-}
-
-const doomModules = new Map();
-function doomModule(source, load = file => require(path.join(DOOM_DIR, file))) {
-  if (!doomModules.has(source)) doomModules.set(source, load(SOURCES[source].file));
-  return doomModules.get(source);
-}
-
-async function doomStreams(source, title, { load, fetch: get } = {}) {
-  const series = isSeries(title);
-  const module = doomModule(source, load);
-  const tmdbId = await tmdbIdFor(title.imdb_id, series, { fetch: get });
-  const known = { title: title.title, year: String(title.release_year || ''), originalTitle: title.original_title || title.title, imdbId: title.imdb_id };
-  const items = await module.getStreams(tmdbId, series ? 'tv' : 'movie', series ? title.season : null, series ? title.episode : null, title.imdb_id, known);
-  return (Array.isArray(items) ? items : []).map(item => fromAddon(item, source)).filter(Boolean);
 }
 
 // Video length in seconds (ffprobe), or null when it cannot be read.
@@ -323,19 +282,11 @@ async function runSource(source, title, options = {}) {
         const streams = (found?.streams || []).map(stream => ({ ...stream, provider: source, server: [labelOf(source), stream.server].filter(Boolean).join(' · '), height: qualityOf(stream.quality), audio: [] }));
         return { streams, candidate: found?.candidate };
       }
-      const found = kind === 'stremio' ? await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch })
-        : await doomStreams(source, title, { load: options.load, fetch: options.fetch });
+      const found = await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch });
       // The probe checks only the first few, so put the best ones first.
       const indian = isIndian(title);
       const best = [...found].sort((a, b) => audioScore(a, indian) - audioScore(b, indian) || (b.height || 0) - (a.height || 0));
-      let playable = best.length ? await probe(best) : [];
-      if (playable.length && sourceDef(source)?.verifyDuration) {
-        const measure = options.durationOf || durationOf;
-        const lengths = await Promise.all(playable.slice(0, 2).map(stream => measure(stream)));
-        // Unknown length is allowed; a known short length means a clip, not the title.
-        if (lengths.some(length => length !== null && length < minimumLength(title))) playable = [];
-      }
-      return { streams: playable };
+      return { streams: best.length ? await probe(best) : [] };
     })(), limit, controller);
     const ms = Date.now() - started;
     providerStatus.record(source, result.streams.length > 0, ms);
@@ -450,5 +401,5 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 
 module.exports = {
   collectStreams, runSource, skipReason, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
-  qualityOf, audioOf, sizeOf, typeOf, stremioId, tmdbIdFor, kindOf, labelOf, SOURCES, DEFAULT_ORDER, _tmdbCache: tmdbCache, _doomModules: doomModules,
+  qualityOf, audioOf, sizeOf, typeOf, stremioId, kindOf, labelOf, DEFAULT_ORDER,
 };

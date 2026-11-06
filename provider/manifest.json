@@ -1,34 +1,10 @@
 [
   {
-    "display_name": "VegaMovies",
-    "value": "vega",
-    "version": "2.9",
-    "icon": "",
-    "type": "global",
-    "disabled": false
-  },
-  {
     "display_name": "4khdHub",
     "value": "4khdhub",
     "version": "2.4",
     "icon": "",
     "type": "global",
-    "disabled": false
-  },
-  {
-    "display_name": "HdHub4u",
-    "value": "hdhub4u",
-    "version": "2.1",
-    "icon": "",
-    "type": "global",
-    "disabled": false
-  },
-  {
-    "display_name": "RogMovies",
-    "value": "luxMovies",
-    "version": "2.5",
-    "icon": "",
-    "type": "india",
     "disabled": false
   },
   {
