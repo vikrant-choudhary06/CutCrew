@@ -48,6 +48,7 @@ export default function Watch() {
   // Where to start: this episode's saved position, unless it was finished.
   const startAt = useMemo(() => {
     const p = lib.progress.find(x => x.data.imdb_id === id && x.season === season && x.episode === episode);
+    console.log(`[CutCrew] resume lookup ${id}: ${lib.progress.length} saved, match=${p ? JSON.stringify({ position: Math.round(p.position), duration: p.duration && Math.round(p.duration), completed: p.completed }) : "none"}`);
     return p && !p.completed && p.position > 10 ? p.position - 3 : 0;
   }, [id, season, episode]); // eslint-disable-line react-hooks/exhaustive-deps
   const offset = useRef(startAt);
