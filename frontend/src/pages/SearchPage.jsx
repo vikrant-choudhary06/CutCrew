@@ -38,12 +38,24 @@ export default function SearchPage() {
   }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
   const state = result.key === key ? { ...result, loading: false } : { items: [], error: '', loading: !!key }
 
+  // Anime matches come from AniList and are shown in their own section.
+  const [anime, setAnime] = useState({ key: '', items: [] })
+  useEffect(() => {
+    if (!key) return
+    const controller = new AbortController()
+    getJSON('/api/anime/search?q=' + encodeURIComponent(query), { signal: controller.signal, timeout: 30000 })
+      .then(body => { if (!controller.signal.aborted) setAnime({ key, items: (body.data || []).slice(0, 12) }) })
+      .catch(() => { if (!controller.signal.aborted) setAnime({ key, items: [] }) })
+    return () => controller.abort()
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const animeItems = anime.key === key ? anime.items : []
+
   const use = value => { setText(value); setParams({ q: value }, { replace: true }) }
   return <main id="main" className="page search-page">
     <h1 className="sr-only">Search</h1>
     <form className="search-field" role="search" onSubmit={e => { e.preventDefault(); use(text.trim()) }}>
       <Icon name="search" size={22} />
-      <input ref={input} type="search" value={text} onChange={e => setText(e.target.value)} placeholder="Search movies and series" aria-label="Search movies and series" enterKeyHint="search" autoComplete="off" />
+      <input ref={input} type="search" value={text} onChange={e => setText(e.target.value)} placeholder="Search movies, series and anime" aria-label="Search movies, series and anime" enterKeyHint="search" autoComplete="off" />
       {text && <button type="button" className="icon-button" aria-label="Clear search" onClick={() => { setText(''); setParams({}, { replace: true }); input.current?.focus() }}><Icon name="close" /></button>}
     </form>
 
@@ -61,8 +73,9 @@ export default function SearchPage() {
 
     {query && <section aria-live="polite" aria-busy={state.loading}>
       {state.error ? <p className="inline-error">{state.error} <button className="text-button" onClick={() => setRetry(n => n + 1)}>Try again</button></p>
-        : !state.loading && !state.items.length ? <div className="notice"><h2>No results for “{query}”.</h2><p>Check the spelling, try a shorter title, or browse a genre.</p></div>
-          : <><p className="muted result-count">{state.loading ? 'Searching…' : `${state.items.length} result${state.items.length === 1 ? '' : 's'} for “${query}”`}</p><Grid items={state.items} loading={state.loading} count={6} /></>}
+        : !state.loading && !state.items.length && !animeItems.length ? <div className="notice"><h2>No results for “{query}”.</h2><p>Check the spelling, try a shorter title, or browse a genre.</p></div>
+          : <><p className="muted result-count">{state.loading ? 'Searching…' : `${state.items.length} result${state.items.length === 1 ? '' : 's'} for “${query}”`}</p><Grid items={state.items} loading={state.loading} count={6} />
+            {animeItems.length > 0 && <section className="search-section search-anime" aria-label="Anime results"><div className="row-head"><h2>Anime</h2></div><Grid items={animeItems} loading={false} /></section>}</>}
     </section>}
   </main>
 }

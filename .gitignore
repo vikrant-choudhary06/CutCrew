@@ -7,6 +7,8 @@ seedMovie.js
 
 # App downloads are published as GitHub releases, not committed
 download/
+# ...but not the anime SDK source folder of the same name
+!provider_anime/src/download/
 
 # Secrets and dependencies
 .env

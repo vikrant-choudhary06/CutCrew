@@ -5,12 +5,6 @@ import { Row } from '../components/Rows'
 import { useLibrary } from '../components/LibraryContext'
 import { getJSON, isSeries, GENRES } from '../lib/api'
 
-const recent = items => {
-  const year = new Date().getFullYear(), now = new Date()
-  return items.filter(x => x.release_year >= year - 1 && x.release_year <= year && (!x.release_date || new Date(x.release_date) <= now))
-    .sort((a, b) => Number(b.release_year) - Number(a.release_year))
-}
-
 // "Because you watched X": a genre row seeded by something finished or well under way.
 function BecauseYouWatched({ progress }) {
   const watched = progress.filter(p => p.completed || p.position >= 600)
@@ -40,9 +34,12 @@ export default function Home() {
     <Hero />
     <div className="rows">
       {continuing.length > 0 && <Row title="Continue watching" items={continuing} kind="wide" more="/my-list?tab=continue" />}
-      <Row title="Top 10 movies on CutCrew" path="/api/movies/trending" kind="top" limit={10} eager />
-      <Row title="New releases" path="/api/discover?type=movie&limit=24" filter={recent} more="/movies?sort=new" eager />
-      <Row title="Popular series" path="/api/series/trending" more="/series" />
+      <Row title="Top 10 movies right now" path="/api/movies/trending" kind="top" limit={10} eager />
+      <Row title="New in India" path="/api/discover/new?type=movie&country=IN&limit=24" more="/movies?sort=new&country=IN" eager />
+      <Row title="New releases worldwide" path="/api/discover/new?type=movie&limit=24" more="/movies?sort=new" />
+      <Row title="Popular series right now" path="/api/series/trending" more="/series" />
+      <Row title="New Indian series" path="/api/discover/new?type=series&country=IN&limit=24" more="/series?sort=new&country=IN" />
+      <Row title="Trending anime" path="/api/anime/browse?kind=trending" more="/anime" />
       <BecauseYouWatched progress={library.library.progress} />
       <Row title="Action movies" path="/api/discover?type=movie&genre=Action&limit=24" more="/movies?genre=Action" />
       <Row title="Comedies" path="/api/discover?type=movie&genre=Comedy&limit=24" more="/movies?genre=Comedy" />

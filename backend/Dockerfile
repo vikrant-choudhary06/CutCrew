@@ -3,6 +3,8 @@ WORKDIR /build/provider
 COPY provider/package*.json ./
 RUN npm ci
 COPY provider/ ./
+# Anime providers (anime-sdk) are bundled by the same build into dist-anime.
+COPY provider_anime/src /build/provider_anime/src
 RUN npm run build
 
 FROM node:24-bookworm-slim
@@ -12,6 +14,7 @@ COPY backend/package*.json ./
 RUN npm ci --omit=dev
 COPY --chown=node:node backend/ ./
 COPY --from=providers /build/provider/dist /app/provider/dist
+COPY --from=providers /build/provider/dist-anime /app/provider/dist-anime
 COPY provider/provider-policy.json /app/provider/provider-policy.json
 RUN mkdir -p /app/backend/.local && chown -R node:node /app/backend
 ENV NODE_ENV=production PORT=5000

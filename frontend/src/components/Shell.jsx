@@ -25,13 +25,14 @@ export function TopBar() {
     onScroll(); window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [pathname])
-  const overlay = pathname === '/' || pathname.startsWith('/title/')
+  const overlay = pathname === '/' || pathname.startsWith('/title/') || /^\/anime\/\d+$/.test(pathname)
   return <header className={`topbar ${overlay && !solid ? 'topbar--clear' : ''}`}>
     <Logo />
     <nav className="topnav" aria-label="Main">
       <NavLink to="/" end>Home</NavLink>
       <NavLink to="/movies">Movies</NavLink>
       <NavLink to="/series">Series</NavLink>
+      <NavLink to="/anime">Anime</NavLink>
       <NavLink to="/my-list">My List</NavLink>
     </nav>
     <div className="topbar-actions">
@@ -53,9 +54,9 @@ export function Footer() {
   return <footer className="footer">
     <Logo />
     <nav aria-label="Footer">
-      <Link to="/movies">Movies</Link><Link to="/series">Series</Link><Link to="/my-list">My List</Link><Link to="/account">Account</Link>
+      <Link to="/movies">Movies</Link><Link to="/series">Series</Link><Link to="/anime">Anime</Link><Link to="/my-list">My List</Link><Link to="/account">Account</Link>
     </nav>
-    <p>Titles and artwork come from public catalogues. Playback uses CutCrew's own copies where available, otherwise linked sources.</p>
+    <p>Titles and artwork come from public catalogues (anime from AniList). Playback uses CutCrew's own copies where available, otherwise linked sources.</p>
   </footer>
 }
 

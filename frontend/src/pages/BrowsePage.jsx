@@ -8,7 +8,8 @@ export default function BrowsePage({ type }) {
   const [params, setParams] = useSearchParams()
   const genre = GENRES.includes(params.get('genre')) ? params.get('genre') : ''
   const newest = params.get('sort') === 'new'
-  const filterKey = `${type}|${genre}|${newest}`
+  const india = newest && params.get('country') === 'IN'
+  const filterKey = `${type}|${genre}|${newest}|${india}`
   // Pages and results belong to one filter; changing it starts again at page 1.
   const [view, setView] = useState({ filterKey, pages: 1, items: [], loaded: 0, error: '', hasMore: false, retry: 0 })
   if (view.filterKey !== filterKey) setView({ filterKey, pages: 1, items: [], loaded: 0, error: '', hasMore: false, retry: 0 })
@@ -20,9 +21,10 @@ export default function BrowsePage({ type }) {
     const controller = new AbortController()
     const q = new URLSearchParams({ type, page: String(page), limit: '24' })
     if (genre) q.set('genre', genre)
-    getJSON('/api/discover?' + q, { signal: controller.signal, timeout: 60000 }).then(body => {
-      let fresh = body.data || []
-      if (newest) { const y = new Date().getFullYear(); fresh = fresh.filter(x => x.release_year >= y - 1) }
+    if (india) q.set('country', 'IN')
+    // "New" lists recent releases by popularity; otherwise the full catalogue.
+    getJSON((newest ? '/api/discover/new?' : '/api/discover?') + q, { signal: controller.signal, timeout: 60000 }).then(body => {
+      const fresh = body.data || []
       setView(v => {
         if (v.filterKey !== filterKey) return v
         const seen = new Set(v.items.map(x => x.imdb_id))
@@ -34,9 +36,10 @@ export default function BrowsePage({ type }) {
 
   const retry = () => setView(v => ({ ...v, error: '', retry: v.retry + 1 }))
   const label = type === 'series' ? 'Series' : 'Movies'
-  const pick = g => setParams(g ? { genre: g } : {}, { replace: true })
+  // Genre chips keep the "new" (and India) filter while it is on.
+  const pick = g => setParams({ ...(g ? { genre: g } : {}), ...(newest ? { sort: 'new' } : {}), ...(india ? { country: 'IN' } : {}) }, { replace: true })
   return <main id="main" className="page browse">
-    <h1 className="page-title">{genre ? `${genre} ${label.toLowerCase()}` : newest ? `New ${label.toLowerCase()}` : label}</h1>
+    <h1 className="page-title">{[newest ? 'New' : '', india ? 'Indian' : '', genre, newest || genre || india ? label.toLowerCase() : label].filter(Boolean).join(' ')}</h1>
     <div className="chips browse-chips" role="group" aria-label="Filter by genre">
       <button className="chip" aria-pressed={!genre} onClick={() => pick('')}>All</button>
       {GENRES.map(g => <button key={g} className="chip" aria-pressed={genre === g} onClick={() => pick(g)}>{g}</button>)}

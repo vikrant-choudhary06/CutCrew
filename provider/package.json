@@ -11,7 +11,7 @@
     "test:single": "node test-providers.js",
     "test:provider": "node test-provider.js",
     "test:ui": "npm run test:interactive",
-    "build": "node build-bundled.js",
+    "build": "node build-bundled.js && node build-anime.js",
     "build:dev": "cross-env SKIP_MINIFY=true node build-bundled.js",
     "dev": "node dev-server.js",
     "dev:build": "npm run build && npm run dev",
@@ -19,7 +19,8 @@
     "watch:dev": "nodemon --watch providers --ext ts --exec \"npm run build\" & npm run dev",
     "dev:auto": "concurrently \"nodemon --watch providers --ext ts --exec \\\"npm run build:dev\\\"\" \"npm run dev\"",
     "auto": "node auto-dev.js",
-    "start": "npm run build && npm run dev"
+    "start": "npm run build && npm run dev",
+    "build:anime": "node build-anime.js"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",

@@ -8,22 +8,43 @@ const path = require('node:path');
 const SAMPLE_MOVIES = 'tt1375666|Inception|2010;tt0816692|Interstellar|2014;tt15354916|Jawan|2023;tt12844910|Pathaan|2023';
 const reportDir = () => process.env.PROVIDER_CHECK_DIR ? path.resolve(process.env.PROVIDER_CHECK_DIR) : path.resolve(__dirname, '../../.local/provider-check');
 const REPORT = 'provider-health-weekly.json';
+const ANIME_REPORT = 'anime-health-weekly.json';
 let running = null;
+
+function runScript(args, env, timeoutMs) {
+  return new Promise(resolve => {
+    const child = spawn(process.execPath, args, { cwd: path.resolve(__dirname, '../..'), env, stdio: 'ignore', windowsHide: true });
+    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
+    child.on('close', code => { clearTimeout(timer); resolve(code === 0); });
+    child.on('error', () => { clearTimeout(timer); resolve(false); });
+  });
+}
 
 function run({ timeoutMs = 45 * 60000 } = {}) {
   if (running) return running;
-  running = new Promise(resolve => {
+  running = (async () => {
     fs.mkdirSync(reportDir(), { recursive: true });
     // Every installed provider is checked, not only the ones enabled for playback.
     const env = { ...process.env };
     delete env.ENABLED_PROVIDERS;
-    const child = spawn(process.execPath, ['scripts/check-providers.cjs', `--movies=${SAMPLE_MOVIES}`, '--timeout=45000', '--candidates=4',
-      `--report-dir=${reportDir()}`, `--report=${REPORT}`], { cwd: path.resolve(__dirname, '../..'), env, stdio: 'ignore', windowsHide: true });
-    const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-    child.on('close', code => { clearTimeout(timer); resolve(code === 0); });
-    child.on('error', () => { clearTimeout(timer); resolve(false); });
-  }).finally(() => { running = null; });
+    const movies = await runScript(['scripts/check-providers.cjs', `--movies=${SAMPLE_MOVIES}`, '--timeout=45000', '--candidates=4',
+      `--report-dir=${reportDir()}`, `--report=${REPORT}`], env, timeoutMs);
+    // Anime sources: ten popular shows, episode 1.
+    const anime = await runScript(['scripts/check-anime.cjs', `--report-dir=${reportDir()}`, `--report=${ANIME_REPORT}`], process.env, 20 * 60000);
+    return movies && anime;
+  })().finally(() => { running = null; });
   return running;
+}
+
+// Short summary of the last anime check for the admin health view.
+function latestAnime() {
+  try {
+    const report = JSON.parse(fs.readFileSync(path.join(reportDir(), ANIME_REPORT), 'utf8'));
+    return { checkedAt: report.checkedAt, providers: report.providers, verified: report.verified, checked: report.checked,
+      failed: (report.results || []).filter(r => r.status !== 'media-verified').map(r => ({ title: r.title || r.anilistId, status: r.status })) };
+  } catch {
+    return null;
+  }
 }
 
 // Short summary for the admin health view: which providers delivered real video.
@@ -43,4 +64,4 @@ function latest() {
   }
 }
 
-module.exports = { run, latest, running: () => Boolean(running) };
+module.exports = { run, latest, latestAnime, running: () => Boolean(running) };

@@ -440,3 +440,19 @@ main { animation: page-in var(--mid) var(--ease-out) both; }
   .hero-media img, .hero-media img.is-current, .title-media img { transition: none; transform: none; }
   .rail { scroll-behavior: auto; }
 }
+
+/* Anime section */
+.anime-home { padding: 28px 0 56px; }
+.anime-head { padding: 0 var(--gutter); margin-bottom: 18px; }
+.anime-head .page-title { margin-bottom: 6px; }
+.anime-head p { margin: 0; max-width: 60ch; }
+.anime-genres { margin-bottom: 28px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.anime-genres .chip { flex: none; }
+.anime-home .rows { margin-top: 0; }
+.anime-native { margin: -8px 0 14px; color: var(--dust); font-size: var(--t-16); }
+.anime-plot { white-space: pre-line; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.anime-note { margin: 14px 0 0; font-size: var(--t-14); }
+.anime-links { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.anime-links a, .details dd > a { color: var(--marigold); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 899px) { .anime-plot { -webkit-line-clamp: 4; } }
+.search-anime { margin-top: 40px; }

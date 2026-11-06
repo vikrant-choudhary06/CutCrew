@@ -1,7 +1,33 @@
 const router = require('express').Router();
 const scraper = require('../services/scraperService');
 const genres = ['Action','Adventure','Animation','Comedy','Crime','Documentary','Drama','Family','Fantasy','History','Horror','Music','Mystery','Romance','Sci-Fi','Thriller','War','Western'];
+const imdb = require('../services/imdbLists');
 const cache = new Map(), pending = new Map();
+
+// New and popular: recent releases sorted by IMDb popularity, worldwide or for
+// one country (?country=IN). Falls back to Cinemeta's popular list, keeping
+// only recent releases, if IMDb is unreachable.
+router.get('/new', async (req, res, next) => {
+  try {
+    const type = req.query.type || 'movie', genre = req.query.genre || '', country = req.query.country || '';
+    const page = Number(req.query.page || 1), limit = Number(req.query.limit || 24);
+    if (!['movie','series'].includes(type) || (genre && !genres.includes(genre)) || (country && !imdb.COUNTRIES.includes(country)) ||
+        !Number.isInteger(page) || page < 1 || page > 10 || !Number.isInteger(limit) || limit < 1 || limit > 24 ||
+        [req.query.type,req.query.genre,req.query.country,req.query.page,req.query.limit].some(value => value !== undefined && typeof value !== 'string')) {
+      return res.status(400).json({ message: 'Invalid filter or page' });
+    }
+    try {
+      const result = await imdb.popularNew({ type, country, genre, page, perPage: limit });
+      return res.set('Cache-Control', 'public, max-age=600').json({ status: 'success', source: 'imdb', data: result.items, page, hasMore: result.hasMore });
+    } catch (error) {
+      if (country) throw error;
+      const since = Date.now() - 150 * 86400000;
+      const items = (await scraper.fetchDiscover(type, genre, 0)).filter(item => item.release_date && Date.parse(item.release_date) >= since && Date.parse(item.release_date) <= Date.now());
+      return res.json({ status: 'success', source: 'cinemeta', data: page === 1 ? items.slice(0, limit) : [], page, hasMore: false });
+    }
+  } catch { next(Object.assign(new Error('New releases are temporarily unavailable. Please retry.'), { status: 502 })); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     const type = req.query.type || 'movie', genre = req.query.genre || '';

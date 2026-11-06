@@ -17,7 +17,8 @@
     "providers:matrix": "node scripts/check-content-reliability.cjs",
     "telegram:check": "node scripts/telegram-phase0.cjs check",
     "telegram:poc": "node scripts/telegram-phase0.cjs",
-    "video:import": "node scripts/video-import.cjs"
+    "video:import": "node scripts/video-import.cjs",
+    "anime:check": "node scripts/check-anime.cjs"
   },
   "keywords": [],
   "author": "",

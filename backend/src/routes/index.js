@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 router.use('/discover', require('./discover'));
+router.use('/anime', require('./anime')); // anime section: AniList catalogue + anime providers
 router.get('/featured',require('./featured'));
 router.use('/account', require('./account'));
 router.use('/playback',require('./playbackMetrics'));

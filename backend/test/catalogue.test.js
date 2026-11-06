@@ -10,6 +10,12 @@ scraper.fetchTrending = async type => {
   return [{ imdb_id: 'tt15239678', title: 'Sample title', title_type: type === 'series' ? 'TV Series' : 'Movie', metadata_complete: false }];
 };
 Movie.create = Movie.findOneAndUpdate = () => { throw new Error('Discovery must not write incomplete metadata'); };
+// IMDb "popular now" lists. Unavailable unless a test sets imdbItems, so the
+// stored and Cinemeta fallbacks below are what these tests exercise.
+const imdb = require('../src/services/imdbLists');
+let imdbItems = null;
+imdb.popularNew = async () => { if (!imdbItems) throw new Error('IMDb unavailable'); return { items: imdbItems, hasMore: false }; };
+imdb.popularSeries = async () => { if (!imdbItems) throw new Error('IMDb unavailable'); return imdbItems; };
 const app = require('../src/app');
 const server = app.listen(0, '127.0.0.1');
 const ready = new Promise(resolve => server.once('listening', resolve));
@@ -19,7 +25,7 @@ async function get(path) {
   const response = await fetch('http://127.0.0.1:' + server.address().port + path);
   return { status: response.status, body: await response.json() };
 }
-test('saved trending titles use the database without contacting metadata services', async () => {
+test('without IMDb, saved trending titles use the database without contacting metadata services', async () => {
   stored = Array.from({ length: 10 }, (_, index) => ({ imdb_id: 'tt' + String(index + 1).padStart(7, '0'), title: 'Stored title' }));
   const result = await get('/api/movies/trending');
   assert.equal(result.status, 200); assert.equal(result.body.source, 'database');
@@ -47,4 +53,17 @@ test('small catalogues keep stored details and add distinct live suggestions', a
   const result = await get('/api/movies/trending');
   assert.equal(result.status, 200); assert.equal(result.body.source, 'mixed');
   assert.equal(result.body.data.length, 1); assert.equal(result.body.data[0].title, 'Complete stored title');
+});
+test('top 10, popular series and new releases use IMDb popularity when it is available', async () => {
+  imdbItems = Array.from({ length: 10 }, (_, i) => ({ imdb_id: 'tt' + String(i + 100).padStart(7, '0'), title: 'New ' + i, poster_url: 'https://img.example/p.jpg' }));
+  try {
+    const movies = await get('/api/movies/trending');
+    assert.equal(movies.status, 200); assert.equal(movies.body.source, 'imdb'); assert.equal(movies.body.data[0].title, 'New 0');
+    const series = await get('/api/series/trending');
+    assert.equal(series.body.source, 'imdb');
+    const india = await get('/api/discover/new?type=movie&country=IN');
+    assert.equal(india.status, 200); assert.equal(india.body.source, 'imdb'); assert.equal(india.body.data.length, 10);
+    assert.equal((await get('/api/discover/new?country=XX')).status, 400);
+    assert.equal((await get('/api/discover/new?type=game')).status, 400);
+  } finally { imdbItems = null; }
 });

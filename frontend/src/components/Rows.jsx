@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from './Icon'
-import { getJSON, posterUrl, backdropUrl, isSeries, titlePath, watchPath, prefersReducedMotion } from '../lib/api'
+import { getJSON, posterUrl, backdropUrl, isAnime, typeLabel, titlePath, watchPath, prefersReducedMotion } from '../lib/api'
 import { useInstant } from '../lib/instant'
 import { useLibrary } from './LibraryContext'
 
@@ -29,7 +29,7 @@ export function PosterCard({ item }) {
       <Art src={posterUrl(item)} alt={item.title} className="poster-art" />
       {instant && <InstantBadge />}
       <span className="poster-title">{item.title}</span>
-      <span className="poster-meta"><span>{item.release_year || ''}</span><span>{isSeries(item) ? 'Series' : 'Movie'}</span></span>
+      <span className="poster-meta"><span>{item.release_year || ''}</span><span>{item.relation || typeLabel(item)}</span></span>
     </Link>
     <button className="poster-save" aria-pressed={saved} aria-label={saved ? `Remove ${item.title} from My List` : `Add ${item.title} to My List`} onClick={() => library.toggleWatchlist(item)}>
       <Icon name={saved ? 'check' : 'plus'} size={16} />
@@ -42,7 +42,7 @@ export function ContinueCard({ entry }) {
   const library = useLibrary()
   const item = entry.data
   const left = entry.duration > 0 ? Math.max(0, Math.round((entry.duration - entry.position) / 60)) : null
-  const where = entry.season > 0 ? `S${entry.season} E${entry.episode}` : ''
+  const where = entry.episode > 0 && isAnime(item) ? `Episode ${entry.episode}` : entry.season > 0 ? `S${entry.season} E${entry.episode}` : ''
   return <article className="wide-card">
     <Link to={watchPath(item, entry.season || undefined, entry.episode || undefined)} className="wide-link" aria-label={`Resume ${item.title}${where ? ' ' + where : ''}`}>
       <Art src={backdropUrl(item, 'small')} alt="" className="wide-art" fallback={item.title} />

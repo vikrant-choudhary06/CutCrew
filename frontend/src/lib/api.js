@@ -21,12 +21,18 @@ export const peekJSON = path => cache.get(path)?.body
 
 export const isSeries = item => /series|episode/i.test(item?.title_type || '')
 
+// Anime titles come from AniList and are keyed "anilist:<id>".
+export const isAnime = item => item?.kind === 'anime' || /^anilist:\d+$/.test(item?.imdb_id || '')
+export const anilistId = item => item?.anilist_id || Number(String(item?.imdb_id || '').split(':')[1]) || null
+export const typeLabel = item => (isAnime(item) ? (item.title_type === 'Anime Movie' ? 'Anime movie' : 'Anime') : isSeries(item) ? 'Series' : 'Movie')
+
 // Cinemeta artwork exists for every IMDb title: posters, wide backgrounds
 // and transparent title logos.
 const art = (kind, size, id) => `https://images.metahub.space/${kind}/${size}/${id}/img`
-export const posterUrl = (item, size = 'small') => (size === 'small' && item?.poster_url) || (item?.imdb_id ? art('poster', size, item.imdb_id) : '')
-export const backdropUrl = (item, size = 'medium') => (size !== 'small' && item?.backdrop_url) || (item?.imdb_id ? art('background', size, item.imdb_id) : '')
-export const logoUrl = (item, size = 'medium') => (item?.imdb_id ? art('logo', size, item.imdb_id) : '')
+// Anime artwork comes from AniList (cover and banner); there are no logos.
+export const posterUrl = (item, size = 'small') => (isAnime(item) ? item.poster_url || '' : (size === 'small' && item?.poster_url) || (item?.imdb_id ? art('poster', size, item.imdb_id) : ''))
+export const backdropUrl = (item, size = 'medium') => (isAnime(item) ? item.backdrop_url || item.poster_url || '' : (size !== 'small' && item?.backdrop_url) || (item?.imdb_id ? art('background', size, item.imdb_id) : ''))
+export const logoUrl = (item, size = 'medium') => (item?.imdb_id && !isAnime(item) ? art('logo', size, item.imdb_id) : '')
 
 export function runtimeLabel(minutes) {
   const m = Number(minutes)
@@ -42,8 +48,12 @@ export const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'D
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-export function titlePath(item) { return `/title/${item.imdb_id || item.id}` }
+// Genres the anime lists accept (AniList names).
+export const ANIME_GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller']
+
+export function titlePath(item) { return isAnime(item) ? `/anime/${anilistId(item)}` : `/title/${item.imdb_id || item.id}` }
 export function watchPath(item, season, episode) {
+  if (isAnime(item)) return `/anime/${anilistId(item)}/watch${episode ? '?episode=' + episode : ''}`
   const params = new URLSearchParams()
   if (season) params.set('season', season)
   if (episode) params.set('episode', episode)

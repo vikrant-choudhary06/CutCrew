@@ -12,6 +12,9 @@ const SearchPage = lazy(() => import('./pages/SearchPage'))
 const MyListPage = lazy(() => import('./pages/MyListPage'))
 const AccountPage = lazy(() => import('./pages/AccountPage'))
 const WatchPage = lazy(() => import('./pages/WatchPage'))
+const AnimePage = lazy(() => import('./pages/AnimePage'))
+const AnimeTitlePage = lazy(() => import('./pages/AnimeTitlePage'))
+const AnimeWatchPage = lazy(() => import('./pages/AnimeWatchPage'))
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -29,7 +32,7 @@ function AccountLinks() {
 
 export default function App() {
   const { pathname } = useLocation()
-  const watching = pathname.startsWith('/watch/')
+  const watching = pathname.startsWith('/watch/') || /^\/anime\/\d+\/watch$/.test(pathname)
   return <>
     <a href="#main" className="skip-link">Skip to content</a>
     <ScrollToTop />
@@ -42,6 +45,9 @@ export default function App() {
         <Route path="/series" element={<BrowsePage type="series" />} />
         <Route path="/title/:id" element={<TitlePage />} />
         <Route path="/watch/:id" element={<WatchPage />} />
+        <Route path="/anime" element={<AnimePage />} />
+        <Route path="/anime/:id" element={<AnimeTitlePage />} />
+        <Route path="/anime/:id/watch" element={<AnimeWatchPage />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/my-list" element={<MyListPage />} />
         <Route path="/account" element={<AccountPage />} />
