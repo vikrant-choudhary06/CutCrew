@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const { openMedia } = require('./mediaService');
 const health=require('./playbackHealth');
+const { fromPlaylist } = require('./audioTracks');
 const cache = new Map(), pending = new Map();
 function signature(bytes) {
   const head = bytes.subarray(0,64);
@@ -25,14 +26,16 @@ async function probe(stream, {signal,open=openMedia,depth=0,timeoutMs=4500} = {}
     }
     const format=signature(Buffer.concat(chunks));
     if(format==='hls'){
-      const uri=Buffer.concat(chunks).toString('utf8').split(/\r?\n/).map(line=>line.trim()).find(line=>line&&!line.startsWith('#'));
+      const text=Buffer.concat(chunks).toString('utf8');
+      const audioTracks=depth===0?fromPlaylist(text):[];
+      const uri=text.split(/\r?\n/).map(line=>line.trim()).find(line=>line&&!line.startsWith('#'));
       if(!uri||depth>=2)return {ok:false,reason:'invalid-playlist'};
       const target=new URL(uri,response.config?.url||stream.link);
       const headers={...stream.headers};
       if(target.origin!==new URL(stream.link).origin)for(const key of Object.keys(headers))if(/^(cookie|authorization)$/i.test(key))delete headers[key];
       response.data.destroy();
       const segment=await probe({...stream,link:target.href,headers},{signal:abort,open,depth:depth+1,timeoutMs});
-      return {...segment,format:'hls',seekable:false};
+      return {...segment,format:'hls',seekable:false,...(audioTracks.length?{audioTracks}:{})};
     }
     return {ok:!!format,format:format==='matroska'?'mkv':format,reason:format||'invalid-media',seekable:response.status===206&&/^bytes 0-\d+\/\d+$/.test(response.headers['content-range']||'')};
   } catch(error) {
@@ -63,6 +66,6 @@ async function filterPlayable(streams,{signal,check=checked,timeoutMs,client='we
   // Web: MKV after MP4/HLS, and HEVC / 10-bit / >720p MKV (re-encoded) after the rest.
   const mkv=item=>item.result.format==='mkv'||item.stream.type==='mkv';
   const rank=item=>(client!=='app'&&mkv(item)?20+(item.stream.hevc||(item.stream.height||0)>720?10:0):0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
-  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{})}));
+  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{}),...(item.result.audioTracks?.length&&!item.stream.audioTracks?.length?{audioTracks:item.result.audioTracks}:{})}));
 }
 module.exports={probe,signature,filterPlayable};

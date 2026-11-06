@@ -5,6 +5,7 @@ const { resolvePlayback, normalizeStreams, episodeFor } = require('../services/p
 const { collectStreams, sourceOrder } = require('../services/streamSources');
 const { presentStreams } = require('../services/mediaService');
 const sourceProbe = require('../services/sourceProbe');
+const audioTracks = require('../services/audioTracks');
 const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
 const pending = new Map();
 const CACHE_MS = 3 * 60 * 60 * 1000;
@@ -20,6 +21,10 @@ router.get('/:imdb_id', async (req, res, next) => {
     if (!series && (req.query.season || req.query.episode)) return res.status(400).json({ error: 'This title is a movie' });
     // Apps get original MKV files (seekable); the website gets them converted.
     const client = req.query.client === 'app' ? 'app' : 'web';
+    // Preferred audio language: sources that surely have it come first, and each
+    // stream says which of its tracks to play (audioIndex).
+    const lang = audioTracks.preferredLanguage(typeof req.query.lang === 'string' ? req.query.lang : '');
+    const ready = list => audioTracks.withChoice(audioTracks.preferLanguage(list, lang, { client }), lang, client);
     const excludedProviders = typeof req.query.exclude === 'string' ? req.query.exclude.split(',').filter(Boolean).slice(0, 41) : [];
     // Telegram storage first (only when enabled and a Ready version exists).
     // The player excludes it after a failure, which falls through to providers.
@@ -40,7 +45,7 @@ router.get('/:imdb_id', async (req, res, next) => {
         Date.now() - new Date(target.stream_fetched_at).getTime() < CACHE_MS) {
       res.set('Cache-Control', 'no-store');
       const usable=await sourceProbe.filterPlayable(cached,{client});
-      if(usable.length)return res.json({ streams: presentStreams(usable,{client}), provider: cachedProvider, cached: true });
+      if(usable.length)return res.json({ streams: presentStreams(ready(usable),{client}), provider: cachedProvider, cached: true, lang });
     }
     const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(','), client].join(':');
     if (!pending.has(key)) {
@@ -80,6 +85,8 @@ router.get('/:imdb_id', async (req, res, next) => {
           : await collectStreams(movie.toObject(), { ...options, client,
             onLate: late => { if (late.streams.length) save(late).catch(error => console.warn('[Sources] late save failed', error.message)); } });
         await save(result);
+        // Tracks read after the answer: save again so the next play ranks by language.
+        result.inspection?.then(() => save(result)).catch(error => console.warn('[Sources] track save failed', error.message));
         return { streams: result.streams, provider: result.provider, sources: result.sources };
       })();
       pending.set(key, job);
@@ -87,7 +94,7 @@ router.get('/:imdb_id', async (req, res, next) => {
     }
     const result = await pending.get(key);
     res.set('Cache-Control', 'no-store');
-    res.json({ streams: presentStreams(result.streams, { client }), provider: result.provider, cached: false, ...(result.sources ? { sources: result.sources } : {}) });
+    res.json({ streams: presentStreams(ready(result.streams), { client }), provider: result.provider, cached: false, lang, ...(result.sources ? { sources: result.sources } : {}) });
   } catch (error) { next(error); }
 });
 module.exports = router;

@@ -20,6 +20,9 @@ const DEFAULT_ORDER = ['desiflix', 'hdhub', 'censored', 'pengu', 'moviebox', '4k
 const API_TIMEOUT_MS = Number(process.env.SOURCE_TIMEOUT_MS) || 10000;
 const VEGA_TIMEOUT_MS = Number(process.env.VEGA_SOURCE_TIMEOUT_MS) || 25000;
 const WAIT_MS = Number(process.env.SOURCE_WAIT_MS) || 10000;
+// How long an answer waits for the file inspection (codec, audio tracks) after
+// a source has found its streams; the inspection itself may take longer.
+const INSPECT_WAIT_MS = Number(process.env.SOURCE_INSPECT_WAIT_MS) || 5000;
 const stateFile = () => process.env.SOURCE_STATE_FILE || path.resolve(__dirname, '../../.local/provider-check/source-state.json');
 
 // Stremio add-ons: STREMIO_ADDONS="id=https://base,id=https://base". Without
@@ -239,11 +242,42 @@ function videoOf(stream, { timeoutMs = 6000, run } = {}) {
 }
 // MKV files that a browser cannot get by a plain copy (the server must re-encode).
 async function markHeavy(streams, measure = videoOf) {
-  await Promise.all(streams.filter(s => s.type === 'mkv').slice(0, 4).map(async stream => {
-    const video = await measure(stream);
-    if (!video) return;
-    if (video.codec !== 'h264' || video.tenBit) stream.hevc = true;
-    if (!stream.height && video.height) stream.height = video.height >= 760 ? 1080 : video.height >= 500 ? 720 : video.height >= 280 ? 480 : video.height; // cinema crops (1920x816, 1280x534)
+  await Promise.all(streams.filter(s => s.type === 'mkv').slice(0, 4).map(async stream => applyVideo(stream, await measure(stream))));
+  return streams;
+}
+function applyVideo(stream, video) {
+  if (!video) return;
+  if (video.codec !== 'h264' || video.tenBit) stream.hevc = true;
+  if (!stream.height && video.height) stream.height = video.height >= 760 ? 1080 : video.height >= 500 ? 720 : video.height >= 280 ? 480 : video.height; // cinema crops (1920x816, 1280x534)
+}
+// Video codec and every audio track of a file in one ffprobe: { video, tracks }, or null.
+function mediaOf(stream, { timeoutMs = 15000, run } = {}) {
+  const exec = run || ((args, options) => new Promise((resolve, reject) => {
+    require('child_process').execFile(process.env.FFPROBE_PATH || 'ffprobe', args, options, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+  }));
+  const headers = Object.entries(stream.headers || {}).filter(([k, v]) => !/[\r\n]/.test(`${k}${v}`)).map(([k, v]) => `${k}: ${v}\r\n`).join('');
+  const args = ['-v', 'error', ...(headers ? ['-headers', headers] : []), '-analyzeduration', '3000000', '-probesize', '2000000',
+    '-show_entries', 'stream=index,codec_type,codec_name,pix_fmt,height,channels:stream_tags=language,title:stream_disposition=default', '-of', 'json', stream.link];
+  return exec(args, { timeout: timeoutMs, maxBuffer: 1 << 20 }).then(out => {
+    const list = JSON.parse(String(out)).streams || [];
+    const v = list.find(s => s.codec_type === 'video');
+    return { video: v ? { codec: v.codec_name, tenBit: /10|12/.test(v.pix_fmt || ''), height: Number(v.height) || 0 } : null,
+      tracks: require('./audioTracks').fromProbe(list) };
+  }).catch(() => null);
+}
+
+// Codec and audio tracks of the first files, read in parallel (two ffprobes each).
+async function inspect(streams, options = {}) {
+  const audio = require('./audioTracks');
+  if (options.videoOf || options.readTracks) {
+    await Promise.all([markHeavy(streams, options.videoOf), audio.addTracks(streams, { read: options.readTracks })]);
+    return streams;
+  }
+  await Promise.all(streams.filter(s => s.type !== 'hls').slice(0, 4).map(async stream => {
+    const media = await (options.mediaOf || mediaOf)(stream);
+    if (!media) return;
+    if (stream.type === 'mkv') applyVideo(stream, media.video);
+    if (media.tracks.length && !stream.audioTracks?.length) audio.setTracks(stream, media.tracks);
   }));
   return streams;
 }
@@ -284,7 +318,7 @@ async function runSource(source, title, options = {}) {
         const attempt = options.attemptProvider || require('./providerService').attemptProvider;
         const found = await attempt(title.movie || title, source, { season: title.season, episode: title.episode, rediscover: options.rediscover, timeoutMs: limit });
         const streams = (found?.streams || []).map(stream => ({ ...stream, provider: source, server: [labelOf(source), stream.server].filter(Boolean).join(' · '), height: qualityOf(stream.quality), audio: [] }));
-        return { streams: options.skipCodec ? streams : await markHeavy(streams, options.videoOf), candidate: found?.candidate };
+        return { streams, candidate: found?.candidate };
       }
       const found = kind === 'stremio' ? await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch })
         : await doomStreams(source, title, { load: options.load, fetch: options.fetch });
@@ -298,11 +332,17 @@ async function runSource(source, title, options = {}) {
         // Unknown length is allowed; a known short length means a clip, not the title.
         if (lengths.some(length => length !== null && length < minimumLength(title))) playable = [];
       }
-      return { streams: options.skipCodec ? playable : await markHeavy(playable, options.videoOf) };
+      return { streams: playable };
     })(), limit, controller);
     const ms = Date.now() - started;
     providerStatus.record(source, result.streams.length > 0, ms);
-    return { source, ...result, ms };
+    // Outside the source's time limit: the file inspection never fails a source.
+    let inspection;
+    if (!options.skipCodec && result.streams.length) {
+      inspection = inspect(result.streams, options).catch(() => result.streams);
+      await Promise.race([inspection, new Promise(resolve => setTimeout(resolve, options.inspectWaitMs ?? INSPECT_WAIT_MS))]);
+    }
+    return { source, ...result, ms, ...(inspection ? { inspection } : {}) };
   } catch (error) {
     const ms = Date.now() - started;
     providerStatus.record(source, false, ms);
@@ -373,6 +413,8 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
     const vega = ok.find(r => r.candidate);
     return {
       streams, provider: streams[0]?.provider || '', candidate: vega?.candidate || null,
+      // Resolves when every file inspection has finished (the streams are updated in place).
+      inspection: Promise.allSettled(ok.map(r => r.inspection).filter(Boolean)),
       sources: order.map(id => {
         const r = results.find(item => item.source === id);
         return r ? { source: id, streams: r.streams.length, ms: r.ms, ...(r.error ? { error: r.error } : {}), ...(r.skipped ? { skipped: r.skipped } : {}) } : { source: id, pending: true };
@@ -404,6 +446,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, durationOf, videoOf, markHeavy, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, tmdbIdFor, kindOf, labelOf, SOURCES, DEFAULT_ORDER, _tmdbCache: tmdbCache, _doomModules: doomModules,
 };

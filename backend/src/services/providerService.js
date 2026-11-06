@@ -175,6 +175,7 @@ async function fetchAndAttachProviderLinks(movie, { timeoutMs = 40000 } = {}) {
   }
   return movie;
 }
+const { cleanTracks } = require('./audioTracks');
 function normalizeStreams(input) {
   const list = Array.isArray(input) ? input : Array.isArray(input?.streams) ? input.streams : [];
   const seen = new Set();
@@ -186,7 +187,10 @@ function normalizeStreams(input) {
     seen.add(link);
     const type = /m3u8|mpegurl|hls/i.test(item.type || '') || /\.m3u8(?:\?|$)/i.test(link) ? 'hls'
       : /mkv|matroska/i.test(item.type || '') || /\.mkv(?:\?|$)/i.test(link) ? 'mkv' : 'mp4';
+    const audioTracks = cleanTracks(item.audioTracks);
+    const audio = Array.isArray(item.audio) ? item.audio.filter(x => typeof x === 'string').slice(0, 12) : [];
     return [{ link, type, server: item.server || 'Source', quality: item.quality || '', ...(item.provider ? { provider: item.provider } : {}), ...(item.hevc ? { hevc: true } : {}), ...(item.height ? { height: item.height } : {}),
+      ...(audioTracks.length ? { audioTracks } : {}), ...(audio.length ? { audio } : {}),
       headers: item.headers || {}, subtitles: Array.isArray(item.subtitles) ? item.subtitles : [] }];
   });
 }
