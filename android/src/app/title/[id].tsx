@@ -34,14 +34,17 @@ export default function TitleScreen() {
   }
 
   const series = isSeries(t);
+  // Anime: one AniList entry is one season, so it is counted and played by episode.
+  const anime = isAnime(t);
+  const episodeCount = sortedEpisodes(seasons[0]).length;
   const current = seasons.find(s => s.season_number === (season ?? resume?.season ?? seasons[0]?.season_number)) || seasons[0];
   const firstEp = sortedEpisodes(seasons[0])[0];
-  const playLabel = resume ? (series && resume.season ? `Resume S${resume.season} E${resume.episode}` : 'Resume')
-    : series && firstEp ? `Play S${seasons[0].season_number} E${firstEp.episode_number}` : 'Play';
+  const playLabel = resume ? (series && resume.season ? (anime ? `Resume E${resume.episode}` : `Resume S${resume.season} E${resume.episode}`) : 'Resume')
+    : series && firstEp ? (anime ? `Play E${firstEp.episode_number}` : `Play S${seasons[0].season_number} E${firstEp.episode_number}`) : 'Play';
   const play = () => resume ? openWatch(t.imdb_id, resume.season || undefined, resume.episode || undefined)
     : series && firstEp ? openWatch(t.imdb_id, seasons[0].season_number, firstEp.episode_number) : openWatch(t.imdb_id);
   const saved = lib.isSaved(t.imdb_id);
-  const facts = [t.release_year, t.content_rating, series ? (seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : 'Series') : runtimeLabel(t.runtime_minutes), (t.genres || []).slice(0, 3).join(', ')].filter(Boolean);
+  const facts = [t.release_year, t.content_rating, series ? (anime ? (episodeCount ? `${episodeCount} episode${episodeCount > 1 ? 's' : ''}` : 'Anime') : seasons.length ? `${seasons.length} season${seasons.length > 1 ? 's' : ''}` : 'Series') : runtimeLabel(t.runtime_minutes), (t.genres || []).slice(0, 3).join(', ')].filter(Boolean);
   const cast = (t.cast || []).map(c => c.name).filter(Boolean) as string[];
   const meta = new Map((t.episode_metadata || []).map(e => [`${e.season}:${e.episode}`, e]));
   const genre = (t.genres || []).find(g => GENRES.includes(g));

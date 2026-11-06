@@ -73,8 +73,12 @@ export default function Search() {
         : !total && result.error ? <Notice title="Search is unavailable right now." body={result.error} />
           : !total ? <Notice title={`No results for “${query}”.`} body="Check the spelling or try a shorter title." />
             : <FlatList key={columns} data={result.items} numColumns={columns} keyExtractor={x => x.imdb_id}
-                ListHeaderComponent={<Text style={[s.count, { paddingHorizontal: gutter }]}>{total} result{total === 1 ? '' : 's'} for “{query}”</Text>}
-                ListFooterComponent={animeItems.length ? <View style={{ marginTop: 10 }}><Row title="Anime" items={animeItems} limit={24} /></View> : undefined}
+                // Anime first: a short row, and the series people mean is often far down the IMDb list.
+                ListHeaderComponent={<View>
+                  <Text style={[s.count, { paddingHorizontal: gutter, marginBottom: animeItems.length ? 12 : 0 }]}>{total} result{total === 1 ? '' : 's'} for “{query}”</Text>
+                  {animeItems.length > 0 && <Row title="Anime" items={animeItems} limit={24} />}
+                  {animeItems.length > 0 && result.items.length > 0 && <Text style={[s.head, { paddingHorizontal: gutter, marginBottom: 0 }]}>Movies and series</Text>}
+                </View>}
                 columnWrapperStyle={{ gap: 12, paddingHorizontal: gutter }} contentContainerStyle={{ gap: 18, paddingVertical: 14 }}
                 renderItem={({ item }) => <PosterCard item={item} width={cardWidth} />} />}
     </View>

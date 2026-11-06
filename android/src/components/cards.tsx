@@ -24,7 +24,7 @@ export function ContinueCard({ entry, width }: { entry: Progress; width: number 
   const lib = useLibrary();
   const t = entry.data;
   const left = entry.duration ? Math.max(0, Math.round((entry.duration - entry.position) / 60)) : null;
-  const where = entry.season > 0 ? (t.kind === 'anime' ? `Episode ${entry.episode}` : `S${entry.season} E${entry.episode}`) : '';
+  const where = entry.season > 0 && entry.episode > 0 ? (t.kind === 'anime' ? `Episode ${entry.episode}` : `S${entry.season} E${entry.episode}`) : '';
   return (
     <View style={{ width }}>
       <Focusable onPress={() => openWatch(t.imdb_id, entry.season || undefined, entry.episode || undefined)}

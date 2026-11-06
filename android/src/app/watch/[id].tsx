@@ -21,9 +21,17 @@ const STORAGE = 'cutcrew-storage';
 export default function Watch() {
   const params = useLocalSearchParams<{ id: string; season?: string; episode?: string }>();
   const id = params.id;
-  const season = params.season ? Number(params.season) : 0;
-  const episode = params.episode ? Number(params.episode) : 0;
   const lib = useLibrary();
+  // Anime opened without an episode (Play on Home): the latest unfinished
+  // episode, else episode 1, always in season 1 as on the website. Chosen once,
+  // so saving progress does not change it mid-play.
+  const [animeStart] = useState(() => {
+    if (!isAnime(id) || params.episode) return null;
+    const last = lib.resumeFor(id);
+    return { season: 1, episode: last && last.episode > 0 ? last.episode : 1 };
+  });
+  const season = params.season ? Number(params.season) : animeStart ? animeStart.season : isAnime(id) ? 1 : 0;
+  const episode = params.episode ? Number(params.episode) : animeStart ? animeStart.episode : 0;
   const [title, setTitle] = useState<Title | null>(null);
   const [request, setRequest] = useState({ exclude: [] as string[], refresh: false, serial: 0 });
   // Each answer, chosen source and player state is tagged with the request it
