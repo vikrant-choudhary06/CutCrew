@@ -27,7 +27,9 @@ export type Title = {
   seasons?: Season[];
   episode_metadata?: { season: number; episode: number; title?: string; thumbnail?: string }[];
 };
-export type Stream = { link: string; type: string; server?: string; quality?: string; language?: string; stored?: boolean; remuxed?: boolean };
+export type Stream = { link: string; type: string; server?: string; quality?: string; language?: string; stored?: boolean; remuxed?: boolean;
+  // Audio tracks the server read from the file, and the one it chose for the preferred language.
+  audioTracks?: { index: number; language: string; label: string }[]; audioIndex?: number; audioLanguage?: string; audioMatched?: boolean };
 export type PlayResponse = { streams: Stream[]; provider?: string; stored?: boolean };
 
 const cache = new Map<string, { at: number; body: unknown }>();
@@ -63,8 +65,9 @@ export const typeLabel = (item: Partial<Title>) => (isAnime(item) ? (item.title_
 // Where a title's details and its streams come from.
 export const titlePath = (id: string) => (isAnime(id) ? `/api/anime/${anilistId(id)}` : `/api/movies/${id}`);
 // client=app: MKV comes as the original file (seekable), not converted.
-export function playPath(id: string, { season, episode, exclude = [], refresh = false }: { season?: number; episode?: number; exclude?: string[]; refresh?: boolean }) {
+export function playPath(id: string, { season, episode, exclude = [], refresh = false, lang }: { season?: number; episode?: number; exclude?: string[]; refresh?: boolean; lang?: string }) {
   const q = new URLSearchParams({ client: 'app' });
+  if (lang && !isAnime(id)) q.set('lang', lang);
   if (isAnime(id)) q.set('episode', String(episode || 1));
   else if (season) { q.set('season', String(season)); q.set('episode', String(episode)); }
   if (exclude.length) q.set('exclude', exclude.join(','));

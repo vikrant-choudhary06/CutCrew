@@ -8,12 +8,13 @@ import * as Crypto from 'expo-crypto';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView, type AudioTrack } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Button, Focusable } from '../../components/ui';
 import { BASE, getJSON, isAnime, nextEpisode, playPath, titlePath, type PlayResponse, type Stream, type Title } from '../../lib/api';
 import { useLibrary } from '../../lib/library';
+import { chooseTrack, detectLanguage, languageName, loadPreferredAudio, missingNotice, preferredAudio, setPreferredAudio } from '../../lib/audio';
 import { C, F } from '../../lib/theme';
 
 const STORAGE = 'cutcrew-storage';
@@ -52,6 +53,15 @@ export default function Watch() {
   const [reload, setReload] = useState(0);
   const retried = useRef(new Set<string>());
   const [chrome, setChrome] = useState(true);
+  // Audio: anime keeps its own (Japanese with subtitles); everything else starts
+  // on the preferred language, and a choice in the Audio menu becomes the preference.
+  const anime = isAnime(id);
+  const [pref, setPref] = useState(preferredAudio());
+  useEffect(() => { loadPreferredAudio().then(setPref); }, []);
+  const [audioState, setAudioState] = useState<{ key: string; list: AudioTrack[]; current: AudioTrack | null }>({ key: '', list: [], current: null });
+  const [audioMenu, setAudioMenu] = useState(false);
+  const [hiddenNote, setHiddenNote] = useState('');
+  const audioChosen = useRef('');
 
   // Where to start: this episode's saved position, unless it was finished.
   const startAt = useMemo(() => {
@@ -78,7 +88,7 @@ export default function Watch() {
     let live = true;
     // client=app: MKV comes as the original file through the relay, so ExoPlayer
     // can seek in it by byte range; nothing is converted on the server.
-    getJSON<PlayResponse>(playPath(id, { season, episode, exclude: request.exclude, refresh: request.refresh }), { timeout: 120000, fresh: true })
+    getJSON<PlayResponse>(playPath(id, { season, episode, exclude: request.exclude, refresh: request.refresh, lang: preferredAudio() }), { timeout: 120000, fresh: true })
       .then(body => {
         if (!live) return;
         if (!body.streams?.length) { setAnswer({ key: requestKey, list: [], error: 'No playable source was found for this title right now.' }); return; }
@@ -116,9 +126,38 @@ export default function Watch() {
     if (pendingSeek.current > 0) { player.currentTime = pendingSeek.current; pendingSeek.current = 0; }
   }
 
+  // ExoPlayer's tracks in the shared form; names from the file when the server read them.
+  const trackInfo = (list: AudioTrack[]) => list.map((t, i) => ({ index: i, language: detectLanguage(t.language, `${t.name || ''} ${t.label || ''}`), title: t.name || t.label || '', default: !!t.isDefault }));
+  const trackLabel = (t: AudioTrack, i: number, list: AudioTrack[]) => {
+    const server = source?.audioTracks;
+    if (server?.length === list.length && server[i]?.label) return server[i].label;
+    return languageName(detectLanguage(t.language, `${t.name || ''} ${t.label || ''}`)) || t.name || t.label || `Audio ${i + 1}`;
+  };
+  // Once per source: switch to the preferred language's track.
+  function chooseAudio(list: AudioTrack[]) {
+    if (anime || list.length < 2 || audioChosen.current === sourceKey) return;
+    audioChosen.current = sourceKey;
+    const server = source?.audioTracks;
+    const index = server?.length === list.length && source?.audioIndex !== undefined ? source.audioIndex : chooseTrack(trackInfo(list), preferredAudio())?.index;
+    const target = index !== undefined ? list[index] : undefined;
+    if (target && player.audioTrack?.id !== target.id) player.audioTrack = target;
+  }
+  useEventListener(player, 'availableAudioTracksChange', ({ availableAudioTracks }) => {
+    setAudioState(s => ({ key: sourceKey, list: availableAudioTracks, current: s.key === sourceKey ? s.current : player.audioTrack }));
+    if (player.status === 'readyToPlay') chooseAudio(availableAudioTracks);
+  });
+  useEventListener(player, 'audioTrackChange', ({ audioTrack }) => setAudioState(s => ({ key: sourceKey, list: s.key === sourceKey ? s.list : player.availableAudioTracks, current: audioTrack })));
+  function pickAudio(track: AudioTrack, i: number, list: AudioTrack[]) {
+    player.audioTrack = track;
+    const code = trackInfo(list)[i].language;
+    if (code) { setPreferredAudio(code); setPref(code); }
+    setAudioMenu(false);
+  }
+
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') {
       jumpToStart();
+      chooseAudio(player.availableAudioTracks);
       setPlayed({ key: sourceKey, ready: true });
     }
     else if (next === 'error') fail();
@@ -167,6 +206,18 @@ export default function Watch() {
     router.replace({ pathname: '/watch/[id]', params: { id, season: String(next.season), episode: String(next.episode) } });
   }
 
+  // What the Audio button lists, and a notice when the preferred language is missing.
+  const audioList = !anime && audioState.key === sourceKey ? audioState.list : [];
+  const playingIndex = audioList.findIndex(t => t.id === audioState.current?.id);
+  const playingLang = playingIndex >= 0 ? trackInfo(audioList)[playingIndex].language : '';
+  const missing = audioList.length > 0 && !trackInfo(audioList).some(t => t.language === pref) ? missingNotice(pref, playingLang) : '';
+  const noteKey = missing ? `${sourceKey}|${missing}` : '';
+  useEffect(() => {
+    if (!noteKey) return;
+    const t = setTimeout(() => setHiddenNote(noteKey), 9000);
+    return () => clearTimeout(t);
+  }, [noteKey]);
+
   // Controls overlay hides after a few seconds of playback.
   useEffect(() => {
     if (!chrome || status !== 'ready') return;
@@ -187,6 +238,12 @@ export default function Watch() {
             <Text style={w.title} numberOfLines={1}>{title?.title || ''}</Text>
             {!!season && <Text style={[w.sub, { textAlign: 'left' }]}>{isAnime(id) ? `Episode ${episode}` : `Season ${season} · Episode ${episode}`}</Text>}
           </View>
+          {audioList.length > 0 && (
+            <Focusable onPress={() => setAudioMenu(true)} accessibilityLabel="Audio" style={w.audioButton}>
+              <Ionicons name="language" size={20} color={C.screen} />
+              <Text style={w.audioText}>Audio</Text>
+            </Focusable>
+          )}
         </View>
       )}
       {status === 'loading' && <View style={w.center} pointerEvents="none"><ActivityIndicator size="large" color={C.marigold} /><Text style={w.sub}>{streams ? 'Starting playback…' : 'Finding a playable source…'}</Text></View>}
@@ -195,6 +252,22 @@ export default function Watch() {
           <Text style={w.errorTitle}>Playback stopped</Text>
           <Text style={w.sub}>{error}</Text>
           <Button label="Try again" kind="quiet" style={{ marginTop: 14 }} onPress={() => setRequest(r => ({ exclude: [], refresh: true, serial: r.serial + 1 }))} />
+        </View>
+      )}
+      {!!noteKey && hiddenNote !== noteKey && status === 'ready' && <View style={w.note} pointerEvents="none"><Text style={w.noteText}>{missing}</Text></View>}
+      {audioMenu && (
+        <View style={w.menuShade}>
+          <View style={w.menu}>
+            <Text style={w.menuTitle}>Audio</Text>
+            {audioList.map((t, i) => (
+              <Focusable key={t.id || i} onPress={() => pickAudio(t, i, audioList)} style={w.menuRow} accessibilityLabel={trackLabel(t, i, audioList)}>
+                <Ionicons name={i === playingIndex ? 'checkmark' : 'ellipse-outline'} size={18} color={i === playingIndex ? C.marigold : C.dust} />
+                <Text style={[w.menuText, i === playingIndex && { color: C.screen }]}>{trackLabel(t, i, audioList)}</Text>
+              </Focusable>
+            ))}
+            <Text style={w.menuHelp}>{`Plays first next time: ${languageName(pref)}`}</Text>
+            <Button label="Close" kind="quiet" onPress={() => setAudioMenu(false)} />
+          </View>
         </View>
       )}
       {showNext && next && <View style={w.next}><Button label={`Next episode  S${next.season} E${next.episode}`} icon="▶" onPress={goNext} /></View>}
@@ -211,4 +284,14 @@ const w = StyleSheet.create({
   center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 24 },
   errorTitle: { color: C.screen, fontFamily: F.bold, fontSize: 20 },
   next: { position: 'absolute', right: 24, bottom: 90 },
+  audioButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 42, borderRadius: 21, backgroundColor: 'rgba(15,19,32,0.7)', borderWidth: 1, borderColor: 'rgba(242,240,234,0.3)' },
+  audioText: { color: C.screen, fontFamily: F.semibold, fontSize: 14 },
+  note: { position: 'absolute', top: 76, left: 0, right: 0, alignItems: 'center' },
+  noteText: { color: C.screen, fontFamily: F.medium, fontSize: 14, backgroundColor: 'rgba(15,19,32,0.9)', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, overflow: 'hidden', maxWidth: 520, textAlign: 'center' },
+  menuShade: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'flex-end', justifyContent: 'center', paddingRight: 24 },
+  menu: { width: 300, maxHeight: '90%', backgroundColor: C.velvet, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: 16, gap: 4 },
+  menuTitle: { color: C.screen, fontFamily: F.bold, fontSize: 18, marginBottom: 6 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 8 },
+  menuText: { color: C.dust, fontFamily: F.semibold, fontSize: 15 },
+  menuHelp: { color: C.dust, fontFamily: F.text, fontSize: 12, marginTop: 6, marginBottom: 8 },
 });

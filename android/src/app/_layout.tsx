@@ -9,6 +9,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { LibraryProvider } from '../lib/library';
 import { checkForNewApk } from '../lib/updates';
 import { C } from '../lib/theme';
+import { loadPreferredAudio } from '../lib/audio';
+
+loadPreferredAudio();
 
 SystemUI.setBackgroundColorAsync(C.night).catch(() => {});
 
