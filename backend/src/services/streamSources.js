@@ -248,7 +248,10 @@ async function markHeavy(streams, measure = videoOf) {
 function applyVideo(stream, video) {
   if (!video) return;
   if (video.codec !== 'h264' || video.tenBit) stream.hevc = true;
-  if (!stream.height && video.height) stream.height = video.height >= 760 ? 1080 : video.height >= 500 ? 720 : video.height >= 280 ? 480 : video.height; // cinema crops (1920x816, 1280x534)
+  // Cinema crops are wide and short (3840x1608, 1920x816, 1280x534), so width counts too.
+  const uhd = (video.width || 0) >= 3200 || video.height >= 1500;
+  if (uhd) stream.height = 2160;
+  else if (!stream.height && video.height) stream.height = video.height >= 760 || (video.width || 0) >= 1800 ? 1080 : video.height >= 500 || (video.width || 0) >= 1200 ? 720 : video.height >= 280 ? 480 : video.height;
 }
 // Video codec and every audio track of a file in one ffprobe: { video, tracks }, or null.
 function mediaOf(stream, { timeoutMs = 15000, run } = {}) {
@@ -257,11 +260,11 @@ function mediaOf(stream, { timeoutMs = 15000, run } = {}) {
   }));
   const headers = Object.entries(stream.headers || {}).filter(([k, v]) => !/[\r\n]/.test(`${k}${v}`)).map(([k, v]) => `${k}: ${v}\r\n`).join('');
   const args = ['-v', 'error', ...(headers ? ['-headers', headers] : []), '-analyzeduration', '3000000', '-probesize', '2000000',
-    '-show_entries', 'stream=index,codec_type,codec_name,pix_fmt,height,channels:stream_tags=language,title:stream_disposition=default', '-of', 'json', stream.link];
+    '-show_entries', 'stream=index,codec_type,codec_name,pix_fmt,width,height,channels:stream_tags=language,title:stream_disposition=default', '-of', 'json', stream.link];
   return exec(args, { timeout: timeoutMs, maxBuffer: 1 << 20 }).then(out => {
     const list = JSON.parse(String(out)).streams || [];
     const v = list.find(s => s.codec_type === 'video');
-    return { video: v ? { codec: v.codec_name, tenBit: /10|12/.test(v.pix_fmt || ''), height: Number(v.height) || 0 } : null,
+    return { video: v ? { codec: v.codec_name, tenBit: /10|12/.test(v.pix_fmt || ''), width: Number(v.width) || 0, height: Number(v.height) || 0 } : null,
       tracks: require('./audioTracks').fromProbe(list) };
   }).catch(() => null);
 }

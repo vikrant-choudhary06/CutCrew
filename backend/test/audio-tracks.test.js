@@ -178,3 +178,12 @@ test('on phones, after the language, 1080p and AAC come before 4K and E-AC3 / DT
   assert.equal(audio.preferLanguage([uhd, eac3, aac], 'en', { client: 'web' }).map(s => s.link).join(' '), 'aac uhd eac3');
   assert.equal(audio.phoneCost({ height: 0 }, 'hi'), 0);
 });
+
+test('a 4K cinema crop (3840x1608) is 2160p, not 1080p', async () => {
+  const sources = require('../src/services/streamSources');
+  const make = () => [{ link: 'https://a.example/uhd.mkv', type: 'mkv' }, { link: 'https://a.example/hd.mkv', type: 'mkv' }, { link: 'https://a.example/label.mkv', type: 'mkv', height: 1080 }];
+  const sizes = { 'https://a.example/uhd.mkv': [3840, 1608], 'https://a.example/hd.mkv': [1920, 800], 'https://a.example/label.mkv': [3840, 2160] };
+  const streams = make();
+  await sources.inspect(streams, { mediaOf: async s => ({ video: { codec: 'hevc', tenBit: true, width: sizes[s.link][0], height: sizes[s.link][1] }, tracks: [] }) });
+  assert.deepEqual(streams.map(s => s.height), [2160, 1080, 2160]);
+});
