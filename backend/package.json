@@ -18,7 +18,8 @@
     "telegram:check": "node scripts/telegram-phase0.cjs check",
     "telegram:poc": "node scripts/telegram-phase0.cjs",
     "video:import": "node scripts/video-import.cjs",
-    "anime:check": "node scripts/check-anime.cjs"
+    "anime:check": "node scripts/check-anime.cjs",
+    "sources:check": "node scripts/check-sources.cjs"
   },
   "keywords": [],
   "author": "",
@@ -28,6 +29,7 @@
     "axios": "^1.17.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
+    "crypto-js": "^4.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "node-cron": "^4.2.1",

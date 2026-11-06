@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { Movie } = require('../models');
 const { ensureMovie, isSeries } = require('../services/movieService');
 const { resolvePlayback, normalizeStreams, episodeFor } = require('../services/providerService');
+const { collectStreams } = require('../services/streamSources');
 const { presentStreams } = require('../services/mediaService');
 const sourceProbe = require('../services/sourceProbe');
 const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
@@ -39,9 +40,10 @@ router.get('/:imdb_id', async (req, res, next) => {
     }
     const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(',')].join(':');
     if (!pending.has(key)) {
-      const job = (async () => {
-        const result = await resolvePlayback(movie.toObject(), { season, episode, excludedProviders, rediscover:req.query.refresh==='1'||cached.length>0 });
+      // Saves streams to the title (or the requested episode) for the cache.
+      const save = async result => {
         const now = new Date();
+        const pageLink = episodeFor(result.candidate, season, episode)?.link;
         if (series) {
           // Update only the requested episode. Concurrent requests for other episodes keep their caches.
           let saved = await Movie.updateOne({ imdb_id: movie.imdb_id,
@@ -50,7 +52,7 @@ router.get('/:imdb_id', async (req, res, next) => {
             'seasons.$[s].episodes.$[e].stream_data': result.streams,
             'seasons.$[s].episodes.$[e].stream_fetched_at': now,
             'seasons.$[s].episodes.$[e].provider_name': result.provider,
-            'seasons.$[s].episodes.$[e].link': episodeFor(result.candidate, season, episode)?.link,
+            ...(pageLink ? { 'seasons.$[s].episodes.$[e].link': pageLink } : {}),
           } }, { arrayFilters: [{ 's.season_number': season }, { 'e.episode_number': episode }] });
           // A direct playback request may arrive before episode discovery has populated the title.
           if (!saved.matchedCount && result.candidate?.seasons) {
@@ -62,18 +64,25 @@ router.get('/:imdb_id', async (req, res, next) => {
           }
         } else {
           await Movie.updateOne({ imdb_id: movie.imdb_id }, { $set: {
-            provider_name: result.provider, defaultStreamLink: result.candidate.defaultStreamLink,
-            stream_data: result.streams, stream_fetched_at: now,
+            provider_name: result.provider, stream_data: result.streams, stream_fetched_at: now,
+            ...(result.candidate?.defaultStreamLink ? { defaultStreamLink: result.candidate.defaultStreamLink } : {}),
           } });
         }
-        return { streams: result.streams, provider: result.provider };
+      };
+      const job = (async () => {
+        const options = { season, episode, excludedProviders, rediscover:req.query.refresh==='1'||cached.length>0 };
+        const result = process.env.MULTI_SOURCE === 'false' ? await resolvePlayback(movie.toObject(), options)
+          : await collectStreams(movie.toObject(), { ...options, client: req.query.client === 'app' ? 'app' : 'web',
+            onLate: late => { if (late.streams.length) save(late).catch(error => console.warn('[Sources] late save failed', error.message)); } });
+        await save(result);
+        return { streams: result.streams, provider: result.provider, sources: result.sources };
       })();
       pending.set(key, job);
       job.finally(() => { if (pending.get(key) === job) pending.delete(key); }).catch(() => {});
     }
     const result = await pending.get(key);
     res.set('Cache-Control', 'no-store');
-    res.json({ streams: presentStreams(result.streams), provider: result.provider, cached: false });
+    res.json({ streams: presentStreams(result.streams), provider: result.provider, cached: false, ...(result.sources ? { sources: result.sources } : {}) });
   } catch (error) { next(error); }
 });
 module.exports = router;

@@ -193,17 +193,12 @@ function normalizeStreams(input) {
 function episodeFor(movie, season, episode) {
   return movie.seasons?.find(s => s.season_number === season)?.episodes?.find(e => e.episode_number === episode);
 }
-async function resolvePlayback(movie, { season, episode, excludedProviders = [], rediscover = false, timeoutMs = 60000 } = {}) {
-  const providers = getAvailableProvidersLocal();
+// One vega-style provider: reuse the saved page link when it belongs to this
+// provider, otherwise search, then resolve and probe the stream.
+// Resolves to { streams, provider, candidate } or null.
+function attemptProvider(movie, provider, { season, episode, rediscover = false, timeoutMs = 25000 } = {}) {
   const savedEpisode = isSeries(movie) ? episodeFor(movie, season, episode) : null;
-  const ordered = [...new Set([savedEpisode?.provider_name, movie.provider_name, ...providers])].filter(p => providers.includes(p) && !excludedProviders.includes(p));
-  const deadline = Date.now() + timeoutMs;
-  for (const provider of ordered) {
-    const started = Date.now();
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    try {
-      const result = await bounded(async signal => {
+  return bounded(async signal => {
         let candidate = !rediscover && provider === (savedEpisode?.provider_name || movie.provider_name) ? movie : null;
         let target = isSeries(movie) ? episodeFor(candidate || {}, season, episode)?.link : candidate?.defaultStreamLink;
         if (!target) {
@@ -219,7 +214,7 @@ async function resolvePlayback(movie, { season, episode, excludedProviders = [],
           for (const link of links.filter(Boolean).slice(0, 3)) {
             try {
               const streams = normalizeStreams(await module.getStream({
-                link, type: isSeries(movie) ? (provider === 'guardahd' ? 'tv' : 'series') : 'movie',
+                link, type: isSeries(movie) ? 'series' : 'movie',
                 signal, providerContext: context,
               }));
               const usable = await sourceProbe.filterPlayable(streams,{signal});
@@ -235,11 +230,23 @@ async function resolvePlayback(movie, { season, episode, excludedProviders = [],
           if (candidate) playable = await attempt(candidate);
         }
         return playable;
-      }, Math.min(25000, remaining));
+      }, timeoutMs);
+}
+async function resolvePlayback(movie, { season, episode, excludedProviders = [], rediscover = false, timeoutMs = 60000 } = {}) {
+  const providers = getAvailableProvidersLocal();
+  const savedEpisode = isSeries(movie) ? episodeFor(movie, season, episode) : null;
+  const ordered = [...new Set([savedEpisode?.provider_name, movie.provider_name, ...providers])].filter(p => providers.includes(p) && !excludedProviders.includes(p));
+  const deadline = Date.now() + timeoutMs;
+  for (const provider of ordered) {
+    const started = Date.now();
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    try {
+      const result = await attemptProvider(movie, provider, { season, episode, rediscover, timeoutMs: Math.min(25000, remaining) });
       providerStatus.record(provider,!!result,Date.now()-started);
       if (result) return result;
     } catch (error) { providerStatus.record(provider,false,Date.now()-started); console.warn('[Provider playback]', provider, error.message); }
   }
   throw Object.assign(new Error('No playable sources found. Please try again later.'), { status: 503 });
 }
-module.exports = { fetchAndAttachProviderLinks, resolvePlayback, normalizeMetadata, normalizeStreams, parseEpisode, matches, titleVariants, releaseYear, bounded, episodeFor };
+module.exports = { fetchAndAttachProviderLinks, resolvePlayback, attemptProvider, normalizeMetadata, normalizeStreams, parseEpisode, matches, titleVariants, releaseYear, bounded, episodeFor };

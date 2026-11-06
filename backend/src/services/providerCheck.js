@@ -9,6 +9,7 @@ const SAMPLE_MOVIES = 'tt1375666|Inception|2010;tt0816692|Interstellar|2014;tt15
 const reportDir = () => process.env.PROVIDER_CHECK_DIR ? path.resolve(process.env.PROVIDER_CHECK_DIR) : path.resolve(__dirname, '../../.local/provider-check');
 const REPORT = 'provider-health-weekly.json';
 const ANIME_REPORT = 'anime-health-weekly.json';
+const SOURCES_REPORT = 'sources-health-weekly.json';
 let running = null;
 
 function runScript(args, env, timeoutMs) {
@@ -31,9 +32,24 @@ function run({ timeoutMs = 45 * 60000 } = {}) {
       `--report-dir=${reportDir()}`, `--report=${REPORT}`], env, timeoutMs);
     // Anime sources: ten popular shows, episode 1.
     const anime = await runScript(['scripts/check-anime.cjs', `--report-dir=${reportDir()}`, `--report=${ANIME_REPORT}`], process.env, 20 * 60000);
-    return movies && anime;
+    // Every playback source (DesiFlix, MovieBox, vega providers…). Sources that
+    // fail two weekly checks in a row are switched off until they pass again.
+    const playback = await runScript(['scripts/check-sources.cjs', `--report-dir=${reportDir()}`, `--report=${SOURCES_REPORT}`, '--update-state'], process.env, 30 * 60000);
+    return movies && anime && playback;
   })().finally(() => { running = null; });
   return running;
+}
+
+// Last playback-source check, and which sources are switched off.
+function latestSources() {
+  try {
+    const report = JSON.parse(fs.readFileSync(path.join(reportDir(), SOURCES_REPORT), 'utf8'));
+    const state = require('./streamSources').sourceState();
+    return { checkedAt: report.checkedAt, titles: report.titles,
+      bySource: Object.fromEntries(Object.entries(report.bySource || {}).map(([id, s]) => [id, { verified: s.verified, checked: s.checked, statuses: s.statuses, formats: s.formats, off: Boolean(state[id]?.disabled), failedChecks: state[id]?.failures || 0 }])) };
+  } catch {
+    return null;
+  }
 }
 
 // Short summary of the last anime check for the admin health view.
@@ -64,4 +80,4 @@ function latest() {
   }
 }
 
-module.exports = { run, latest, latestAnime, running: () => Boolean(running) };
+module.exports = { run, latest, latestAnime, latestSources, running: () => Boolean(running) };

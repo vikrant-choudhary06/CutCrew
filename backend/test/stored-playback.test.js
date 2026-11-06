@@ -1,3 +1,6 @@
+// Storage-first rules are checked against the one-provider-at-a-time path
+// (test/stream-sources.test.js covers the multi-source path).
+process.env.MULTI_SOURCE = 'false';
 // Telegram storage Phase 4: the Play endpoint prefers Ready stored videos and
 // falls back to providers. Movie, provider and repository calls are stubbed.
 const { test, beforeEach, after } = require('node:test');

@@ -1,3 +1,6 @@
+// These tests cover the cache and route rules with the one-provider-at-a-time
+// path; test/stream-sources.test.js covers the multi-source path.
+process.env.MULTI_SOURCE = 'false';
 // Provider/database fixtures use synthetic URLs; real byte validation is tested separately.
 const sourceProbe=require('../src/services/sourceProbe');
 let probeImpl=async streams=>streams;
