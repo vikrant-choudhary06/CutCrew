@@ -80,4 +80,9 @@ test('a published update gives a multipart manifest with correct hashes, and its
   assert.equal((await get('/api/updates/manifest', { 'expo-platform': 'android', 'expo-runtime-version': '1.0.1' })).status, 204);
   // Files outside the update folder cannot be read.
   assert.equal((await get('/api/updates/assets?runtime=1.0.2&update=20261106-1200&file=../../../android.json')).status, 400);
+  // Errors are not cacheable; served files are.
+  const missing = await get('/api/updates/assets?runtime=1.0.2&update=20261106-1200&file=_expo/missing.hbc');
+  assert.equal(missing.status, 404);
+  assert.equal(missing.headers.get('cache-control'), 'no-store');
+  assert.match(asset.headers.get('cache-control'), /immutable/);
 });

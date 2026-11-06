@@ -105,17 +105,21 @@ router.get('/updates/manifest', (req, res) => {
 });
 
 router.get('/updates/assets', (req, res) => {
+  // Errors must never be cached: a phone keeps a cached answer and stops asking.
+  const fail = (status, message) => res.status(status).set('Cache-Control', 'no-store').json({ message });
   const { runtime, update, file } = req.query;
   if (!safeName(runtime) || !safeName(update) || typeof file !== 'string' || !/^[A-Za-z0-9._/-]{1,200}$/.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) {
-    return res.status(400).json({ message: 'Invalid asset' });
+    return fail(400, 'Invalid asset');
   }
   const root = path.join(updatesDir(), runtime, update);
   const target = path.resolve(root, file);
-  if (!target.startsWith(root + path.sep) || !fs.existsSync(target)) return res.status(404).json({ message: 'Asset not found' });
+  if (!target.startsWith(root + path.sep) || !fs.existsSync(target)) return fail(404, 'Asset not found');
   const ext = path.extname(target).slice(1).toLowerCase();
-  res.set('Cache-Control', 'public, max-age=31536000, immutable').type(TYPES[ext] || 'application/octet-stream')
-    // The updates live under .local, which sendFile hides unless told otherwise.
-    .sendFile(target, { dotfiles: 'allow' });
+  // Files of a published update never change, so they may be cached for good.
+  // dotfiles: the updates live under .local, which sendFile hides by default.
+  res.sendFile(target, { dotfiles: 'allow', headers: { 'Cache-Control': 'public, max-age=31536000, immutable', 'Content-Type': TYPES[ext] || 'application/octet-stream' } }, error => {
+    if (error && !res.headersSent) fail(404, 'Asset not found');
+  });
 });
 
 module.exports = router;
