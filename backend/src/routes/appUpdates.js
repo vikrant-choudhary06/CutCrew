@@ -88,8 +88,11 @@ router.get('/updates/manifest', (req, res) => {
   const platform = req.get('expo-platform') || req.query.platform;
   const runtimeVersion = req.get('expo-runtime-version') || req.query['runtime-version'];
   if (!['android', 'ios'].includes(platform) || !safeName(runtimeVersion)) return res.status(400).json({ message: 'Unsupported platform or runtime version' });
-  const proto = (req.get('x-forwarded-proto') || req.protocol || 'https').split(',')[0].trim();
-  const publicBase = process.env.UPDATES_PUBLIC_URL || `${proto}://${req.get('host')}`;
+  // Phones refuse plain http, and the proxies in front report http, so asset
+  // links are https except on a local test server.
+  const host = req.get('host') || '';
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(host);
+  const publicBase = process.env.UPDATES_PUBLIC_URL || `${local ? 'http' : 'https'}://${host}`;
   let manifest;
   try { manifest = buildManifest(runtimeVersion, platform, publicBase); } catch { manifest = null; }
   res.set({ 'expo-protocol-version': '1', 'expo-sfv-version': '0', 'Cache-Control': 'private, max-age=0' });

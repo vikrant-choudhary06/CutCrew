@@ -15,7 +15,6 @@
 //   CUTCREW_DIR       project folder on the server, default ~/cutcrew
 const { spawnSync } = require('child_process');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const appDir = path.resolve(__dirname, '..');
@@ -52,8 +51,9 @@ const key = process.env.CUTCREW_SSH_KEY;
 if (!key) throw new Error('Set CUTCREW_SSH_KEY to the server SSH key file to upload.');
 const host = process.env.CUTCREW_SSH_HOST || 'ubuntu@3.25.211.1';
 const remoteDir = process.env.CUTCREW_DIR || '~/cutcrew';
-const archive = path.join(os.tmpdir(), `cutcrew-update-${folder}.tgz`);
-run('tar', ['czf', archive, '-C', out, '.']);
+// Relative paths: tar and scp read 'C:' in a Windows path as a host name.
+const archive = 'dist-update.tgz';
+run('tar', ['czf', archive, '-C', 'dist-update', '.']);
 const ssh = ['-i', key, '-o', 'BatchMode=yes'];
 run('scp', [...ssh, '-q', archive, `${host}:/tmp/cutcrew-update.tgz`]);
 // The update folder lives on the backend's data volume (/app/backend/.local).
@@ -64,4 +64,4 @@ run('ssh', [...ssh, host, [
   `sudo docker exec $C mkdir -p ${target}`, `sudo docker cp /tmp/cutcrew-update/. $C:${target}`, `sudo docker exec -u 0 $C chown -R node:node /app/backend/.local/updates`,
   'rm -rf /tmp/cutcrew-update /tmp/cutcrew-update.tgz', `echo published ${runtimeVersion}/${folder}`,
 ].join('; ')]);
-fs.rmSync(archive, { force: true });
+fs.rmSync(path.join(appDir, archive), { force: true });

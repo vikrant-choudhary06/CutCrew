@@ -10,7 +10,6 @@ const path = require('node:path');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updates-'));
 process.env.UPDATES_DIR = path.join(dir, 'updates');
 process.env.APP_RELEASE_FILE = path.join(dir, 'android.json');
-process.env.UPDATES_PUBLIC_URL = 'https://webcutcrew.vikrant.sbs';
 const express = require('express');
 const app = express().use('/api', require('../src/routes/appUpdates'));
 const server = http.createServer(app);
@@ -62,10 +61,19 @@ test('a published update gives a multipart manifest with correct hashes, and its
   assert.equal(manifest.assets[0].hash, crypto.createHash('sha256').update(image).digest('base64url'));
   assert.equal(manifest.assets[0].contentType, 'image/png');
   assert.equal(manifest.extra.expoClient.name, 'CutCrew');
-  assert.match(manifest.launchAsset.url, /^https:\/\/webcutcrew\.vikrant\.sbs\/api\/updates\/assets\?/);
+  // The test server is local, so its links are http; a public host gets https (below).
+  assert.match(manifest.launchAsset.url, /^http:\/\/127\.0\.0\.1:\d+\/api\/updates\/assets\?/);
   const asset = await get(new URL(manifest.launchAsset.url).pathname + new URL(manifest.launchAsset.url).search);
   assert.equal(asset.status, 200);
   assert.equal(asset.text, bundle.toString());
+  // Behind the proxies (which report http), a public host still gets https links.
+  const express = require('express');
+  const proxied = express().use((req, _res, next) => { req.headers.host = 'webcutcrew.vikrant.sbs'; req.headers['x-forwarded-proto'] = 'http'; next(); }).use('/api', require('../src/routes/appUpdates'));
+  const other = http.createServer(proxied);
+  await new Promise(resolve => other.listen(0, '127.0.0.1', resolve));
+  const viaProxy = await fetch(`http://127.0.0.1:${other.address().port}/api/updates/manifest`, { headers: { 'expo-platform': 'android', 'expo-runtime-version': '1.0.2' } }).then(r => r.text());
+  other.close();
+  assert.match(viaProxy, /"url":"https:\/\/webcutcrew\.vikrant\.sbs\/api\/updates\/assets\?/);
   // Other runtime versions (other native builds) do not get this update.
   assert.equal((await get('/api/updates/manifest', { 'expo-platform': 'android', 'expo-runtime-version': '1.0.1' })).status, 204);
   // Files outside the update folder cannot be read.

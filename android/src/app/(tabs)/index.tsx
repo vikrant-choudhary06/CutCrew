@@ -14,7 +14,8 @@ export default function Home() {
   const { data, error, retry } = useHome();
   const header = (
     <View>
-      <Hero items={data?.hero} />
+      {/* The hero waits for /api/home (saved copy first) instead of loading /api/featured itself. */}
+      <Hero items={data?.hero ?? []} />
       <View style={[styles.brand, { top: insets.top + 10 }]} pointerEvents="none">
         <Text style={styles.logo}>Cut</Text><View style={styles.cut} /><Text style={styles.logo}>Crew</Text>
       </View>

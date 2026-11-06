@@ -46,3 +46,4 @@ yarn-error.*
 
 # OTA update export (scripts/publish-update.cjs)
 dist-update/
+dist-update.tgz
