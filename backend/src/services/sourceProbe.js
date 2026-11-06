@@ -60,7 +60,9 @@ async function filterPlayable(streams,{signal,check=checked,timeoutMs,client='we
     for(const item of batch)if(item.result.ok)valid.push(item);
     if(valid.length)break;
   }
-  const rank=item=>(client!=='app'&&(item.result.format==='mkv'||item.stream.type==='mkv')?20:0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
+  // Web: MKV after MP4/HLS, and HEVC / 10-bit / >720p MKV (re-encoded) after the rest.
+  const mkv=item=>item.result.format==='mkv'||item.stream.type==='mkv';
+  const rank=item=>(client!=='app'&&mkv(item)?20+(item.stream.hevc||(item.stream.height||0)>720?10:0):0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
   return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{})}));
 }
 module.exports={probe,signature,filterPlayable};

@@ -225,6 +225,29 @@ function durationOf(stream, { timeoutMs = 8000, run } = {}) {
   const args = ['-v', 'error', ...(headers ? ['-headers', headers] : []), '-show_entries', 'format=duration', '-of', 'csv=p=0', stream.link];
   return exec(args, { timeout: timeoutMs }).then(out => { const value = Number(String(out).trim()); return Number.isFinite(value) && value > 0 ? value : null; }).catch(() => null);
 }
+// Video codec of a stream: { codec, tenBit, height } (ffprobe), or null.
+function videoOf(stream, { timeoutMs = 6000, run } = {}) {
+  const exec = run || ((args, options) => new Promise((resolve, reject) => {
+    require('child_process').execFile(process.env.FFPROBE_PATH || 'ffprobe', args, options, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+  }));
+  const headers = Object.entries(stream.headers || {}).filter(([k, v]) => !/[\r\n]/.test(`${k}${v}`)).map(([k, v]) => `${k}: ${v}\r\n`).join('');
+  const args = ['-v', 'error', ...(headers ? ['-headers', headers] : []), '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,pix_fmt,height', '-of', 'csv=p=0', stream.link];
+  return exec(args, { timeout: timeoutMs }).then(out => {
+    const [codec, pixFmt, height] = String(out).trim().split(/\r?\n/)[0].split(',');
+    return codec ? { codec, tenBit: /10|12/.test(pixFmt || ''), height: Number(height) || 0 } : null;
+  }).catch(() => null);
+}
+// MKV files that a browser cannot get by a plain copy (the server must re-encode).
+async function markHeavy(streams, measure = videoOf) {
+  await Promise.all(streams.filter(s => s.type === 'mkv').slice(0, 4).map(async stream => {
+    const video = await measure(stream);
+    if (!video) return;
+    if (video.codec !== 'h264' || video.tenBit) stream.hevc = true;
+    if (!stream.height && video.height) stream.height = video.height >= 760 ? 1080 : video.height >= 500 ? 720 : video.height >= 280 ? 480 : video.height; // cinema crops (1920x816, 1280x534)
+  }));
+  return streams;
+}
+
 // Shortest believable length: films 10 minutes, episodes 3 minutes.
 const minimumLength = title => (isSeries(title) ? 180 : 600);
 
@@ -260,7 +283,8 @@ async function runSource(source, title, options = {}) {
       if (kind === 'vega') {
         const attempt = options.attemptProvider || require('./providerService').attemptProvider;
         const found = await attempt(title.movie || title, source, { season: title.season, episode: title.episode, rediscover: options.rediscover, timeoutMs: limit });
-        return { streams: (found?.streams || []).map(stream => ({ ...stream, provider: source, server: [labelOf(source), stream.server].filter(Boolean).join(' · '), height: qualityOf(stream.quality), audio: [] })), candidate: found?.candidate };
+        const streams = (found?.streams || []).map(stream => ({ ...stream, provider: source, server: [labelOf(source), stream.server].filter(Boolean).join(' · '), height: qualityOf(stream.quality), audio: [] }));
+        return { streams: options.skipCodec ? streams : await markHeavy(streams, options.videoOf), candidate: found?.candidate };
       }
       const found = kind === 'stremio' ? await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch })
         : await doomStreams(source, title, { load: options.load, fetch: options.fetch });
@@ -274,7 +298,7 @@ async function runSource(source, title, options = {}) {
         // Unknown length is allowed; a known short length means a clip, not the title.
         if (lengths.some(length => length !== null && length < minimumLength(title))) playable = [];
       }
-      return { streams: playable };
+      return { streams: options.skipCodec ? playable : await markHeavy(playable, options.videoOf) };
     })(), limit, controller);
     const ms = Date.now() - started;
     providerStatus.record(source, result.streams.length > 0, ms);
@@ -380,6 +404,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, durationOf, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, durationOf, videoOf, markHeavy, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, tmdbIdFor, kindOf, labelOf, SOURCES, DEFAULT_ORDER, _tmdbCache: tmdbCache, _doomModules: doomModules,
 };

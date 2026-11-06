@@ -65,13 +65,13 @@ test('Stremio ids use imdb:season:episode for episodes', () => {
 test('the Stremio adapter calls the right URL for movies and episodes', async () => {
   const calls = [];
   const fetch = async url => { calls.push(url); return json({ streams: [{ url: 'https://h.example/a.mkv', title: '1080p\nAudio: Hindi' }, { title: 'no url' }] }); };
-  const one = await sources.runSource('desiflix', movie, { fetch, probe: keep });
-  const two = await sources.runSource('desiflix', episodeTitle, { fetch, probe: keep });
+  const one = await sources.runSource('desiflix', movie, { fetch, probe: keep, skipCodec: true });
+  const two = await sources.runSource('desiflix', episodeTitle, { fetch, probe: keep, skipCodec: true });
   assert.equal(calls[0], 'https://manifest.desitvhub.eu.org/stream/movie/tt15354916.json');
   assert.equal(calls[1], 'https://manifest.desitvhub.eu.org/stream/series/tt0903747%3A2%3A5.json');
   assert.equal(one.streams.length, 1);
   assert.equal(two.streams.length, 1);
-  const failed = await sources.runSource('desiflix', movie, { fetch: async () => ({ ok: false, status: 500 }), probe: keep });
+  const failed = await sources.runSource('desiflix', movie, { fetch: async () => ({ ok: false, status: 500 }), probe: keep, skipCodec: true });
   assert.deepEqual(failed.streams, []);
   assert.match(failed.error, /HTTP 500/);
 });
@@ -81,7 +81,7 @@ test('the Doom adapter maps IMDb to TMDB and passes the known title', async () =
   let args;
   const load = () => ({ getStreams: async (...given) => { args = given; return [{ url: 'https://cdn.example/m.mp4', title: '1080p [Hindi]' }]; } });
   const fetch = async url => { assert.match(url, /cinemeta.*\/meta\/series\/tt0903747\.json/); return json({ meta: { moviedb_id: 1396 } }); };
-  const result = await sources.runSource('moviebox', episodeTitle, { load, fetch, probe: keep });
+  const result = await sources.runSource('moviebox', episodeTitle, { load, fetch, probe: keep, skipCodec: true });
   assert.deepEqual(args.slice(0, 5), ['1396', 'tv', 2, 5, 'tt0903747']);
   assert.equal(args[5].title, 'Breaking Bad');
   assert.equal(args[5].year, '2008');
@@ -106,14 +106,14 @@ test('a TMDB lookup failure still lets the Doom source run with the title', asyn
   sources._doomModules.clear(); sources._tmdbCache.clear();
   let tmdb = 'unset';
   const load = () => ({ getStreams: async id => { tmdb = id; return []; } });
-  await sources.runSource('moviebox', movie, { load, fetch: async () => { throw new Error('offline'); }, probe: keep });
+  await sources.runSource('moviebox', movie, { load, fetch: async () => { throw new Error('offline'); }, probe: keep, skipCodec: true });
   assert.equal(tmdb, null);
   sources._doomModules.clear(); sources._tmdbCache.clear();
 });
 
 test('a slow source is cut off at its time limit without throwing', async () => {
   const started = Date.now();
-  const result = await sources.runSource('desiflix', movie, { timeoutMs: 150, fetch: () => new Promise(() => {}), probe: keep });
+  const result = await sources.runSource('desiflix', movie, { timeoutMs: 150, fetch: () => new Promise(() => {}), probe: keep, skipCodec: true });
   assert.ok(Date.now() - started < 1000);
   assert.equal(result.error, 'timed out');
   assert.deepEqual(result.streams, []);
@@ -273,15 +273,42 @@ test('a MovieBox clip shorter than a film is dropped; unknown length is allowed'
   sources._doomModules.clear(); sources._tmdbCache.clear();
   const load = () => ({ getStreams: async () => [{ url: 'https://cdn.example/promo.mp4', title: '1080p Hindi' }] });
   const fetch = async () => json({ meta: {} });
-  const promo = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => 22.7 });
+  const promo = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => 22.7 });
   assert.deepEqual(promo.streams, []);
-  const film = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => 9900 });
+  const film = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => 9900 });
   assert.equal(film.streams.length, 1);
-  const unknown = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, durationOf: async () => null });
+  const unknown = await sources.runSource('moviebox', movie, { load, fetch, probe: keep, skipCodec: true, durationOf: async () => null });
   assert.equal(unknown.streams.length, 1);
   assert.equal(sources.minimumLength({ title_type: 'TV Series' }), 180);
   assert.equal(sources.minimumLength({ title_type: 'Movie' }), 600);
   sources._doomModules.clear(); sources._tmdbCache.clear();
+});
+
+test('MKV codecs are read so HEVC / 10-bit files rank after H.264 on the web', async () => {
+  const streams = [
+    { link: 'https://x/hevc.mkv', type: 'mkv', provider: '4khdhub', height: 0 },
+    { link: 'https://x/h264.mkv', type: 'mkv', provider: 'desiflix', height: 720 },
+    { link: 'https://x/v.mp4', type: 'mp4', provider: 'hdhub' },
+  ];
+  const measured = [];
+  await sources.markHeavy(streams, async s => { measured.push(s.link); return s.link.includes('hevc') ? { codec: 'hevc', tenBit: true, height: 816 } : { codec: 'h264', tenBit: false, height: 534 }; });
+  assert.deepEqual(measured, ['https://x/hevc.mkv', 'https://x/h264.mkv'], 'only MKV is measured');
+  assert.equal(streams[0].hevc, true);
+  assert.equal(streams[0].height, 1080);
+  assert.ok(!streams[1].hevc);
+  assert.deepEqual(sources.rank(streams.slice(0, 2), ['4khdhub', 'desiflix']).map(s => s.link), ['https://x/h264.mkv', 'https://x/hevc.mkv']);
+  let args;
+  assert.deepEqual(await sources.videoOf({ link: 'https://x/a.mkv' }, { run: async given => { args = given; return 'hevc,yuv420p10le,816\n'; } }), { codec: 'hevc', tenBit: true, height: 816 });
+  assert.ok(args.includes('v:0'));
+  assert.equal(await sources.videoOf({ link: 'https://x/a.mkv' }, { run: async () => { throw new Error('x'); } }), null);
+});
+
+test('the cached path keeps HEVC MKV after H.264 MKV on the web, not for apps', async () => {
+  const sourceProbe = require('../src/services/sourceProbe');
+  const ok = async () => ({ ok: true, format: 'mkv', seekable: true });
+  const list = [{ link: 'https://x/hevc.mkv', type: 'mkv', hevc: true }, { link: 'https://x/h264.mkv', type: 'mkv', height: 720 }];
+  assert.deepEqual((await sourceProbe.filterPlayable(list, { check: ok })).map(s => s.link), ['https://x/h264.mkv', 'https://x/hevc.mkv']);
+  assert.deepEqual((await sourceProbe.filterPlayable(list, { check: ok, client: 'app' })).map(s => s.link), ['https://x/hevc.mkv', 'https://x/h264.mkv']);
 });
 
 test('ffprobe output becomes a length in seconds', async () => {
