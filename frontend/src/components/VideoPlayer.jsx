@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import {bufferAhead,bufferTarget,canResume} from './bufferPolicy'
+import { chooseTrack, detectLanguage, languageName } from '../lib/audioPrefs'
 
 const clock = value => {
   const seconds = Math.max(0, Math.floor(value || 0))
@@ -18,7 +19,7 @@ function ControlIcon({ name }) {
   }
   return <svg viewBox="0 0 24 24" fill={name === 'play' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>
 }
-export default function VideoPlayer({ source, onFailure, onProgress, onEnded, initialTime = 0, fullDuration, canSeek = false, onSeek, fullscreenTargetRef, onPlaybackState, menu, onMenuChange, settingsContent, languageContent, episodeControls, controlsVisible = true, onMetrics, positionRef }) {
+export default function VideoPlayer({ source, onFailure, onProgress, onEnded, initialTime = 0, fullDuration, canSeek = false, onSeek, fullscreenTargetRef, onPlaybackState, menu, onMenuChange, settingsContent, languageContent, episodeControls, controlsVisible = true, onMetrics, positionRef, preferredAudio = null, onAudioPick }) {
   const touchReveal=useRef(false),intentRef=useRef(true),gateRef=useRef(false),requestPlayback=useRef(null)
   const videoRef = useRef(null), shellRef = useRef(null), hlsRef = useRef(null)
   const callbacks = useRef({ onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration }), resume = useRef(initialTime), lastSent = useRef(0), speed = useRef(1)
@@ -33,7 +34,7 @@ export default function VideoPlayer({ source, onFailure, onProgress, onEnded, in
   const duration = source.remuxed ? Number(fullDuration) || 0 : current.duration
   const seekEnabled = duration > 0 && (!source.remuxed || canSeek)
   const shownTime = duration > 0 ? Math.min(draft ?? current.time, duration) : draft ?? current.time
-  useEffect(() => { callbacks.current = { onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration } }, [onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration])
+  useEffect(() => { callbacks.current = { onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration, preferredAudio } }, [onFailure, onProgress, onEnded, onPlaybackState, onMetrics, fullDuration, preferredAudio])
   useEffect(() => () => clearTimeout(seekTimer.current), [])
   useEffect(() => {
     const video=videoRef.current,created=Date.now(),sessionId=crypto.randomUUID()
@@ -112,7 +113,7 @@ export default function VideoPlayer({ source, onFailure, onProgress, onEnded, in
     if(source.type==='hls'){
       if(Hls.isSupported()){
         hls=new Hls({startPosition:resume.current>0?resume.current:-1,enableWorker:true,capLevelToPlayerSize:true,abrEwmaDefaultEstimate:1500000,maxBufferLength:45,maxMaxBufferLength:90,maxBufferSize:48*1024*1024,backBufferLength:30,manifestLoadingMaxRetry:2,fragLoadingMaxRetry:3});hlsRef.current=hls
-        hls.on(Hls.Events.MANIFEST_PARSED,()=>{setLevels(hls.levels.map((level,index)=>({index,height:level.height,bitrate:level.bitrate})));setQuality(-1);setAudio(hls.audioTracks);setAudioIndex(hls.audioTrack)})
+        hls.on(Hls.Events.MANIFEST_PARSED,()=>{setLevels(hls.levels.map((level,index)=>({index,height:level.height,bitrate:level.bitrate})));setQuality(-1);setAudio(hls.audioTracks);const wanted=callbacks.current.preferredAudio;if(wanted&&hls.audioTracks.length>1){const pick=chooseTrack(hls.audioTracks.map((t,i)=>({index:i,language:detectLanguage(t.lang,t.name),title:t.name||'',default:!!t.default})),wanted);if(pick&&pick.index!==hls.audioTrack)hls.audioTrack=pick.index}setAudioIndex(hls.audioTrack)})
         hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,()=>setAudio(hls.audioTracks));hls.on(Hls.Events.ERROR,(_,data)=>{if(data.fatal)fail('hls-error')});hls.loadSource(source.link);hls.attachMedia(video)
       }else if(video.canPlayType('application/vnd.apple.mpegurl'))video.src=source.link;else fail('unsupported-format')
     }else video.src=source.link
@@ -222,7 +223,7 @@ export default function VideoPlayer({ source, onFailure, onProgress, onEnded, in
     </div>}
     {menu==='language'&&<div className="watch-menu-fields">
       {languageContent}
-      {source.type === 'hls' && audio.length > 1 && <label>Audio<select aria-label="HLS audio track" value={audioIndex} onChange={event => { setAudioIndex(Number(event.target.value)); if (hlsRef.current) hlsRef.current.audioTrack = Number(event.target.value) }}>{audio.map((track, index) => <option key={index} value={index}>{track.name || track.lang || `Audio ${index + 1}`}</option>)}</select></label>}
+      {source.type === 'hls' && audio.length > 1 && <label>Audio<select aria-label="HLS audio track" value={audioIndex} onChange={event => { const value = Number(event.target.value); setAudioIndex(value); if (hlsRef.current) hlsRef.current.audioTrack = value; if (preferredAudio) onAudioPick?.(detectLanguage(audio[value]?.lang, audio[value]?.name)) }}>{audio.map((track, index) => <option key={index} value={index}>{languageName(detectLanguage(track.lang, track.name)) || track.name || `Audio ${index + 1}`}</option>)}</select></label>}
       {source.subtitles?.length > 0 && <><label>Subtitles<select aria-label="Subtitle language" value={captions} onChange={event => { const value = Number(event.target.value); setCaptions(value); [...videoRef.current.textTracks].forEach((track, index) => { track.mode = index === value ? 'showing' : 'disabled' }) }}><option value={-1}>Off</option>{source.subtitles.map((track, index) => <option key={index} value={index}>{track.title || track.language || `Subtitles ${index + 1}`}</option>)}</select></label><label>Text size<select aria-label="Subtitle size" value={captionSize} onChange={event => setCaptionSize(Number(event.target.value))}>{[16, 20, 24, 28, 32].map(size => <option key={size}>{size}</option>)}</select></label></>}
       {!languageContent&&audio.length<=1&&!source.subtitles?.length&&<p className="watch-help">Using this source’s default audio. No additional audio or subtitle tracks are available.</p>}
     </div>}

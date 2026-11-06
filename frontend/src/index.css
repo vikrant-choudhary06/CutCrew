@@ -456,3 +456,12 @@ main { animation: page-in var(--mid) var(--ease-out) both; }
 .anime-links a, .details dd > a { color: var(--marigold); text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 899px) { .anime-plot { -webkit-line-clamp: 4; } }
 .search-anime { margin-top: 40px; }
+
+/* Preferred audio language missing: a short note at the top of the player. */
+.watch-audio-note {
+  position: absolute; top: 76px; left: 50%; transform: translateX(-50%); z-index: 6;
+  margin: 0; padding: 10px 16px; max-width: min(90vw, 520px);
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(15, 19, 32, 0.9); color: var(--screen);
+  font-size: 14px; line-height: 1.4; text-align: center; pointer-events: none;
+}
