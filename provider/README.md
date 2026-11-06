@@ -261,9 +261,9 @@ This gives you flexibility to support both providers that need extra requests fo
 # How to Test Your Provider
 
 ## Test with CLI
-1. Run `npm run test -- provider_name` (example: `npm run test -- showbox`)
+1. Run `npm run test -- provider_name` (example: `npm run test -- vega`)
    - This will do full testing by picking random posts and episodes and testing end-to-end.
-2. Run `npm run test:provider provider_name function_name` (example: `npm run test:provider showbox getPosts`)
+2. Run `npm run test:provider provider_name function_name` (example: `npm run test:provider vega getPosts`)
    - This is for testing a single function, such as getPosts, getSearchPosts, getStream, etc. After entering manually, enter the input.
 
 ## Test in App

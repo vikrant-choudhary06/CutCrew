@@ -30,8 +30,8 @@ test('default providers are limited to the live-verified shortlist', () => {
   const { getAvailableProvidersLocal } = require('../src/utils/providerHelper');
   assert.deepEqual(getAvailableProvidersLocal(), ['4khdhub', 'hdhub4u', 'vega', 'luxMovies', 'internetArchive']);
   assert.ok(getAvailableProvidersLocal({ includeUnverified: true }).length > 2);
-  process.env.ENABLED_PROVIDERS = 'vega,autoEmbed';
-  try { assert.deepEqual(getAvailableProvidersLocal(), ['vega', 'autoEmbed']); }
+  process.env.ENABLED_PROVIDERS = 'vega,internetArchive';
+  try { assert.deepEqual(getAvailableProvidersLocal(), ['vega', 'internetArchive']); }
   finally { delete process.env.ENABLED_PROVIDERS; }
 });
 

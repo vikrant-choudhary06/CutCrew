@@ -400,7 +400,7 @@ async function main() {
     console.log("  node test-provider.js mod getPosts");
     console.log("  node test-provider.js mod getSearchPosts --rebuild");
     console.log("  node test-provider.js uhd getMeta");
-    console.log("  node test-provider.js primeMirror getEpisodes");
+    console.log("  node test-provider.js vega getEpisodes");
     console.log("  node test-provider.js luxMovies getStream");
     console.log("\nAvailable functions:");
     console.log("  - getPosts       (get posts by filter/category)");

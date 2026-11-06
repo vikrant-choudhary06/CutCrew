@@ -235,7 +235,7 @@ async function resolvePlayback(movie, { season, episode, excludedProviders = [],
           if (candidate) playable = await attempt(candidate);
         }
         return playable;
-      }, Math.min(provider === 'autoEmbed' ? 30000 : 25000, remaining));
+      }, Math.min(25000, remaining));
       providerStatus.record(provider,!!result,Date.now()-started);
       if (result) return result;
     } catch (error) { providerStatus.record(provider,false,Date.now()-started); console.warn('[Provider playback]', provider, error.message); }
