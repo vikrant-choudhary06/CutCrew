@@ -97,7 +97,11 @@ function rewritePlaylist(body, base, ticket) {
     return rewrite(line.trim());
   }).join('\n');
 }
-function presentStreams(streams) {
+// Web: MKV is converted to MP4 on the fly (remuxed, not seekable by range).
+// Apps (client=app) play MKV themselves, so they get the original file through
+// the relay ("raw"), with byte ranges for seeking.
+function presentStreams(streams, { client = 'web' } = {}) {
+  const app = client === 'app';
   return streams.flatMap(stream => {
     try {
       const subtitles = stream.subtitles.flatMap(track => {
@@ -105,6 +109,7 @@ function presentStreams(streams) {
         try { return [{ ...track, uri: signMedia(track.uri, stream.headers, /subrip|srt/i.test(track.type || track.uri) ? 'srt' : 'vtt') }]; }
         catch { return []; }
       });
+      if (app) return [{ ...stream, remuxed: false, headers: undefined, link: signMedia(stream.link, stream.headers, stream.type === 'mkv' ? 'raw' : stream.type), subtitles }];
       return [{ ...stream, type: stream.type === 'mkv' ? 'mp4' : stream.type, remuxed: stream.type === 'mkv',
         headers: undefined, link: signMedia(stream.link, stream.headers, stream.type), subtitles }];
     } catch { return []; }

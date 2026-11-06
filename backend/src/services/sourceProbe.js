@@ -51,7 +51,8 @@ async function checked(stream,signal,timeoutMs) {
   pending.set(key,task);return task;
 }
 // timeoutMs: per-link limit (default 4.5 s); some sources prepare a file on first request.
-async function filterPlayable(streams,{signal,check=checked,timeoutMs}={}) {
+// client=app plays MKV directly, so MKV is not pushed down for apps.
+async function filterPlayable(streams,{signal,check=checked,timeoutMs,client='web'}={}) {
   const valid=[];
   // Bounded batches avoid creating a connection for every provider mirror.
   for(let index=0;index<Math.min(streams.length,6)&&!signal?.aborted;index+=3){
@@ -59,7 +60,7 @@ async function filterPlayable(streams,{signal,check=checked,timeoutMs}={}) {
     for(const item of batch)if(item.result.ok)valid.push(item);
     if(valid.length)break;
   }
-  const rank=item=>(item.result.format==='mkv'||item.stream.type==='mkv'?20:0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
+  const rank=item=>(client!=='app'&&(item.result.format==='mkv'||item.stream.type==='mkv')?20:0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
   return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{})}));
 }
 module.exports={probe,signature,filterPlayable};

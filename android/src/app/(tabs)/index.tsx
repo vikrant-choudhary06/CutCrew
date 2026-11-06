@@ -1,36 +1,40 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+// Home: hero + rows from one /api/home call, shown from the phone's saved copy
+// first and refreshed in the background. Rows render as the user scrolls to
+// them (FlatList), so only the hero and the first rows load at start.
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ContinueRow, Row } from '../../components/cards';
 import { Hero } from '../../components/Hero';
-import { recent } from '../../lib/api';
+import { Loading, Notice } from '../../components/ui';
+import { useHome, type HomeRow } from '../../lib/home';
 import { C, F } from '../../lib/theme';
-
-const ROWS: { title: string; path: string; kind?: 'top'; filter?: typeof recent }[] = [
-  { title: 'Top 10 movies on CutCrew', path: '/api/movies/trending', kind: 'top' },
-  { title: 'New releases', path: '/api/discover?type=movie&limit=24', filter: recent },
-  { title: 'Popular series', path: '/api/series/trending' },
-  { title: 'Action movies', path: '/api/discover?type=movie&genre=Action&limit=24' },
-  { title: 'Comedies', path: '/api/discover?type=movie&genre=Comedy&limit=24' },
-  { title: 'Thrillers', path: '/api/discover?type=movie&genre=Thriller&limit=24' },
-  { title: 'Crime series', path: '/api/discover?type=series&genre=Crime&limit=24' },
-  { title: 'Animated movies', path: '/api/discover?type=movie&genre=Animation&limit=24' },
-  { title: 'Romance', path: '/api/discover?type=movie&genre=Romance&limit=24' },
-  { title: 'Horror', path: '/api/discover?type=movie&genre=Horror&limit=24' },
-];
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: C.night }} contentContainerStyle={{ paddingBottom: 24 }}>
-      <Hero />
+  const { data, error, retry } = useHome();
+  const header = (
+    <View>
+      <Hero items={data?.hero} />
       <View style={[styles.brand, { top: insets.top + 10 }]} pointerEvents="none">
         <Text style={styles.logo}>Cut</Text><View style={styles.cut} /><Text style={styles.logo}>Crew</Text>
       </View>
-      <View style={{ marginTop: 8 }}>
-        <ContinueRow />
-        {ROWS.map(row => <Row key={row.title} {...row} />)}
-      </View>
-    </ScrollView>
+      <View style={{ marginTop: 8 }}><ContinueRow /></View>
+    </View>
+  );
+  return (
+    <FlatList<HomeRow>
+      style={{ flex: 1, backgroundColor: C.night }}
+      contentContainerStyle={{ paddingBottom: 24 }}
+      data={data?.rows || []}
+      keyExtractor={row => row.id}
+      ListHeaderComponent={header}
+      ListEmptyComponent={error ? <Notice title="Home could not load." body={error} action="Try again" onAction={retry} /> : <Loading />}
+      renderItem={({ item: row }) => <Row title={row.title} items={row.items} kind={row.kind === 'top' ? 'top' : 'poster'} limit={row.kind === 'top' ? 10 : 24} />}
+      initialNumToRender={3}
+      maxToRenderPerBatch={2}
+      windowSize={5}
+      removeClippedSubviews
+    />
   );
 }
 

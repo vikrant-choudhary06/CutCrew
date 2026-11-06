@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { backdropUrl, isSeries, posterUrl, type Title } from '../lib/api';
+import { backdropUrl, posterUrl, typeLabel, type Title } from '../lib/api';
 import { useLibrary, type Progress } from '../lib/library';
 import { C, F, R } from '../lib/theme';
 import { useFetch } from '../lib/useFetch';
@@ -15,7 +15,7 @@ export function PosterCard({ item, width }: { item: Title; width: number }) {
     <Focusable onPress={() => openTitle(item)} style={{ width }} accessibilityLabel={`${item.title}${item.release_year ? ', ' + item.release_year : ''}`}>
       <Art uri={posterUrl(item)} label={item.title} style={{ width, aspectRatio: 2 / 3 }} />
       <Text style={c.title} numberOfLines={1}>{item.title}</Text>
-      <Text style={c.meta} numberOfLines={1}>{[item.release_year, isSeries(item) ? 'Series' : 'Movie'].filter(Boolean).join('  ')}</Text>
+      <Text style={c.meta} numberOfLines={1}>{[item.release_year, typeLabel(item)].filter(Boolean).join('  ')}</Text>
     </Focusable>
   );
 }
@@ -24,7 +24,7 @@ export function ContinueCard({ entry, width }: { entry: Progress; width: number 
   const lib = useLibrary();
   const t = entry.data;
   const left = entry.duration ? Math.max(0, Math.round((entry.duration - entry.position) / 60)) : null;
-  const where = entry.season > 0 ? `S${entry.season} E${entry.episode}` : '';
+  const where = entry.season > 0 ? (t.kind === 'anime' ? `Episode ${entry.episode}` : `S${entry.season} E${entry.episode}`) : '';
   return (
     <View style={{ width }}>
       <Focusable onPress={() => openWatch(t.imdb_id, entry.season || undefined, entry.episode || undefined)}
@@ -64,6 +64,7 @@ export function Row({ title, path, items: given, kind = 'poster', filter, limit 
       {loading && !items.length
         ? <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: gutter }}>{[0, 1, 2, 3, 4].map(i => <View key={i} style={{ width: poster, aspectRatio: 2 / 3.4, borderRadius: R.card, backgroundColor: C.velvet }} />)}</View>
         : <FlatList horizontal data={items} keyExtractor={x => x.imdb_id} showsHorizontalScrollIndicator={false}
+            initialNumToRender={5} maxToRenderPerBatch={4} windowSize={3} removeClippedSubviews
             contentContainerStyle={{ paddingHorizontal: gutter, gap: kind === 'top' ? 6 : 12, paddingVertical: 6 }}
             renderItem={({ item, index }) => kind === 'top' ? <TopCard item={item} rank={index + 1} width={poster} /> : <PosterCard item={item} width={poster} />} />}
     </View>

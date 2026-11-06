@@ -52,3 +52,22 @@ test('an episode found only by non-vega sources keeps the saved episode page lin
   assert.equal(saved[0]['seasons.$[s].episodes.$[e].provider_name'], 'desiflix');
   assert.ok(!('seasons.$[s].episodes.$[e].link' in saved[0]), 'the episode page link is left alone');
 });
+
+test('client=app gets the original MKV through the relay (seekable); the website gets it converted', async () => {
+  const media = require('../src/services/mediaService');
+  Movie.findOne = async () => title();
+  Movie.findOneAndUpdate = async (_q, change) => title(change.$set);
+  Movie.updateOne = async () => ({ matchedCount: 1 });
+  collectImpl = async () => ({ streams: [{ ...stream, link: 'https://cdn.example/jawan.mkv', type: 'mkv', provider: 'desiflix' }], provider: 'desiflix', candidate: null, sources: [] });
+  const app = await get('/api/movies/play/tt15354916?refresh=1&client=app');
+  assert.equal(app.status, 200);
+  assert.equal(app.body.streams[0].type, 'mkv');
+  assert.equal(app.body.streams[0].remuxed, false);
+  const appTicket = media.verifyToken(new URL(app.body.streams[0].link, 'http://x').searchParams.get('token'));
+  assert.equal(appTicket.format, 'raw', 'relayed as bytes, not through ffmpeg');
+  assert.equal(appTicket.url, 'https://cdn.example/jawan.mkv');
+  const web = await get('/api/movies/play/tt15354916?refresh=1');
+  assert.equal(web.body.streams[0].type, 'mp4');
+  assert.equal(web.body.streams[0].remuxed, true);
+  assert.equal(media.verifyToken(new URL(web.body.streams[0].link, 'http://x').searchParams.get('token')).format, 'mkv');
+});

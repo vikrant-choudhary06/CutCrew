@@ -43,3 +43,6 @@ yarn-error.*
 # Built installers
 *.apk
 *.aab
+
+# OTA update export (scripts/publish-update.cjs)
+dist-update/

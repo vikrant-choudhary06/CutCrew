@@ -7,7 +7,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { openWatch, Row } from '../../components/cards';
 import { Art, Button, Chip, Focusable, Loading, Notice, RoundButton, useSizes } from '../../components/ui';
-import { backdropUrl, GENRES, isSeries, logoUrl, ratingLabel, runtimeLabel, sortedEpisodes, sortedSeasons, type Title } from '../../lib/api';
+import { backdropPreview, backdropUrl, GENRES, isAnime, isSeries, logoUrl, ratingLabel, runtimeLabel, sortedEpisodes, sortedSeasons, titlePath, type Title } from '../../lib/api';
 import { useLibrary } from '../../lib/library';
 import { C, F, R } from '../../lib/theme';
 import { useFetch } from '../../lib/useFetch';
@@ -17,9 +17,9 @@ export default function TitleScreen() {
   const insets = useSafeAreaInsets();
   const { width, height, tv, tablet, gutter } = useSizes();
   const lib = useLibrary();
-  const { data, loading, error, retry } = useFetch<{ data: Title }>(id ? `/api/movies/${id}` : null, { timeout: 90000 });
+  const { data, loading, error, retry } = useFetch<{ data: Title }>(id ? titlePath(id) : null, { timeout: 90000 });
   const t = data?.data;
-  const [logoFailed, setLogoFailed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(Boolean(id && isAnime(id)));
   const seasons = useMemo(() => (t ? sortedSeasons(t) : []), [t]);
   const resume = t ? lib.resumeFor(t.imdb_id) : undefined;
   const [season, setSeason] = useState<number | null>(null);
@@ -51,7 +51,7 @@ export default function TitleScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.night }} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={{ height: heroHeight }}>
-        <Image source={backdropUrl(t, 'large')} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={{ top: '20%', left: '65%' }} transition={400} cachePolicy="memory-disk" />
+        <Image source={backdropUrl(t)} placeholder={backdropPreview(t) || undefined} placeholderContentFit="cover" style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={{ top: '20%', left: '65%' }} transition={400} cachePolicy="memory-disk" />
         <LinearGradient colors={['rgba(15,19,32,0.6)', 'transparent', C.night]} locations={[0, 0.35, 1]} style={StyleSheet.absoluteFill} />
         <View style={{ position: 'absolute', top: insets.top + 6, left: 0 }}><BackButton /></View>
       </View>
@@ -101,7 +101,7 @@ export default function TitleScreen() {
       )}
 
       <View style={{ marginTop: 30 }}>
-        <Row title="More like this" path={`/api/discover?type=${series ? 'series' : 'movie'}&limit=24${genre ? '&genre=' + encodeURIComponent(genre) : ''}`}
+        <Row title="More like this" {...(isAnime(t) ? { items: t.recommendations || [] } : {})} path={`/api/discover?type=${series ? 'series' : 'movie'}&limit=24${genre ? '&genre=' + encodeURIComponent(genre) : ''}`}
           filter={items => items.filter(x => x.imdb_id !== t.imdb_id)} limit={14} />
       </View>
     </ScrollView>

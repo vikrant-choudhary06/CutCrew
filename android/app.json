@@ -3,7 +3,7 @@
     "name": "CutCrew",
     "slug": "cutcrew",
     "scheme": "cutcrew",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -14,14 +14,17 @@
     },
     "android": {
       "package": "sbs.vikrant.cutcrew",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#0f1320",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.REQUEST_INSTALL_PACKAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -32,7 +35,17 @@
       "expo-video",
       "expo-image",
       "expo-font",
-      "./plugins/withAndroidTv"
-    ]
+      "./plugins/withAndroidTv",
+      "expo-updates"
+    ],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://webcutcrew.vikrant.sbs/api/updates/manifest",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

@@ -18,6 +18,8 @@ router.get('/:imdb_id', async (req, res, next) => {
       return res.status(400).json({ error: 'Choose a valid season and episode' });
     }
     if (!series && (req.query.season || req.query.episode)) return res.status(400).json({ error: 'This title is a movie' });
+    // Apps get original MKV files (seekable); the website gets them converted.
+    const client = req.query.client === 'app' ? 'app' : 'web';
     const excludedProviders = typeof req.query.exclude === 'string' ? req.query.exclude.split(',').filter(Boolean).slice(0, 41) : [];
     // Telegram storage first (only when enabled and a Ready version exists).
     // The player excludes it after a failure, which falls through to providers.
@@ -35,10 +37,10 @@ router.get('/:imdb_id', async (req, res, next) => {
     if (req.query.refresh !== '1' && !excludedProviders.includes(cachedProvider) && cached.length &&
         Date.now() - new Date(target.stream_fetched_at).getTime() < CACHE_MS) {
       res.set('Cache-Control', 'no-store');
-      const usable=await sourceProbe.filterPlayable(cached);
-      if(usable.length)return res.json({ streams: presentStreams(usable), provider: cachedProvider, cached: true });
+      const usable=await sourceProbe.filterPlayable(cached,{client});
+      if(usable.length)return res.json({ streams: presentStreams(usable,{client}), provider: cachedProvider, cached: true });
     }
-    const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(',')].join(':');
+    const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(','), client].join(':');
     if (!pending.has(key)) {
       // Saves streams to the title (or the requested episode) for the cache.
       const save = async result => {
@@ -73,7 +75,7 @@ router.get('/:imdb_id', async (req, res, next) => {
       const job = (async () => {
         const options = { season, episode, excludedProviders, rediscover:req.query.refresh==='1'||cached.length>0 };
         const result = process.env.MULTI_SOURCE === 'false' ? await resolvePlayback(movie.toObject(), options)
-          : await collectStreams(movie.toObject(), { ...options, client: req.query.client === 'app' ? 'app' : 'web',
+          : await collectStreams(movie.toObject(), { ...options, client,
             onLate: late => { if (late.streams.length) save(late).catch(error => console.warn('[Sources] late save failed', error.message)); } });
         await save(result);
         return { streams: result.streams, provider: result.provider, sources: result.sources };
@@ -83,7 +85,7 @@ router.get('/:imdb_id', async (req, res, next) => {
     }
     const result = await pending.get(key);
     res.set('Cache-Control', 'no-store');
-    res.json({ streams: presentStreams(result.streams), provider: result.provider, cached: false, ...(result.sources ? { sources: result.sources } : {}) });
+    res.json({ streams: presentStreams(result.streams, { client }), provider: result.provider, cached: false, ...(result.sources ? { sources: result.sources } : {}) });
   } catch (error) { next(error); }
 });
 module.exports = router;

@@ -3,20 +3,27 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { backdropUrl, isSeries, logoUrl, runtimeLabel, type Title } from '../lib/api';
+import { backdropPreview, backdropUrl, isAnime, isSeries, logoUrl, runtimeLabel, type Title } from '../lib/api';
 import { useLibrary } from '../lib/library';
 import { C, F } from '../lib/theme';
 import { useFetch } from '../lib/useFetch';
 import { openTitle, openWatch } from './cards';
 import { Button, RoundButton, useSizes } from './ui';
 
-export function Hero() {
+// `items` comes from /api/home; without it the hero loads /api/featured itself.
+export function Hero({ items: given }: { items?: Title[] } = {}) {
   const { width, height, tv, tablet, gutter } = useSizes();
   const lib = useLibrary();
-  const { data } = useFetch<{ data: Title[] }>('/api/featured', { timeout: 25000 });
-  const items = useMemo(() => (data?.data || []).filter(x => x.imdb_id && x.backdrop_url).slice(0, 5), [data]);
+  const { data } = useFetch<{ data: Title[] }>(given ? null : '/api/featured', { timeout: 25000 });
+  const items = useMemo(() => (given || data?.data || []).filter(x => x.imdb_id && x.backdrop_url).slice(0, 5), [given, data]);
   const [index, setIndex] = useState(0);
   const [logoFailed, setLogoFailed] = useState<Record<string, boolean>>({});
+
+  // The next hero's artwork is fetched before it shows.
+  useEffect(() => {
+    const next = items[(index + 1) % Math.max(1, items.length)];
+    if (next) Image.prefetch([backdropUrl(next), logoUrl(next)].filter(Boolean), 'memory-disk').catch(() => {});
+  }, [items, index]);
 
   // Changes every 9 seconds.
   useEffect(() => {
@@ -34,11 +41,11 @@ export function Hero() {
 
   return (
     <View style={{ height: heroHeight }}>
-      <Image source={backdropUrl(item, 'large')} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={{ top: '20%', left: '65%' }} transition={600} cachePolicy="memory-disk" />
+      <Image source={backdropUrl(item)} placeholder={backdropPreview(item) || undefined} placeholderContentFit="cover" style={StyleSheet.absoluteFill} contentFit="cover" contentPosition={{ top: '20%', left: '65%' }} transition={400} cachePolicy="memory-disk" />
       <LinearGradient colors={['rgba(15,19,32,0.55)', 'transparent', 'rgba(15,19,32,0.75)', C.night]} locations={[0, 0.3, 0.72, 1]} style={StyleSheet.absoluteFill} />
       {wideLayout && <LinearGradient colors={['rgba(15,19,32,0.9)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 0.7, y: 0 }} style={StyleSheet.absoluteFill} />}
       <View style={[h.body, { paddingHorizontal: gutter, maxWidth: wideLayout ? 620 : undefined }]}>
-        {!logoFailed[item.imdb_id]
+        {!logoFailed[item.imdb_id] && !isAnime(item)
           ? <Image source={logoUrl(item)} style={{ width: Math.min(width * (wideLayout ? 0.36 : 0.72), 420), height: wideLayout ? 130 : 96 }} contentFit="contain" contentPosition="left" onError={() => setLogoFailed(m => ({ ...m, [item.imdb_id]: true }))} accessibilityLabel={item.title} />
           : <Text style={h.title} numberOfLines={2}>{item.title}</Text>}
         <Text style={h.facts}>{facts.join('  ·  ')}</Text>

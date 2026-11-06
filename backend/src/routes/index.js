@@ -3,6 +3,8 @@ const router = express.Router();
 router.use('/discover', require('./discover'));
 router.use('/anime', require('./anime')); // anime section: AniList catalogue + anime providers
 router.get('/featured',require('./featured'));
+router.use('/home', require('./home'));
+router.use('/', require('./appUpdates')); // /app/android (latest APK) and /updates/* (OTA) // apps: hero + all home rows in one answer
 router.use('/account', require('./account'));
 router.use('/playback',require('./playbackMetrics'));
 

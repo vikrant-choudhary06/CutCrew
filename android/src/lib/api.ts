@@ -6,6 +6,12 @@ export type Episode = { episode_number: number; title?: string };
 export type Season = { season_number: number; episodes?: Episode[] };
 export type Title = {
   imdb_id: string;
+  kind?: string;
+  anilist_id?: number;
+  format?: string;
+  format_label?: string;
+  recommendations?: Title[];
+  episodes_available?: number;
   title: string;
   title_type?: string;
   release_year?: number;
@@ -47,13 +53,33 @@ export async function getJSON<T = any>(path: string, { timeout = 30000, fresh = 
 }
 export const peekJSON = <T = any>(path: string) => cache.get(path)?.body as T | undefined;
 
-export const isSeries = (item?: Partial<Title> | null) => /series|episode/i.test(item?.title_type || '');
+// Anime titles come from AniList and are keyed "anilist:<id>"; a TV anime has
+// its episodes in season 1, an anime film plays like a movie.
+export const isAnime = (item?: Partial<Title> | string | null) => typeof item === 'string' ? /^anilist:\d+$/.test(item) : item?.kind === 'anime' || /^anilist:\d+$/.test(item?.imdb_id || '');
+export const anilistId = (id: string) => Number(id.split(':')[1]) || 0;
+export const isSeries = (item?: Partial<Title> | null) => /series|episode/i.test(item?.title_type || '') || item?.title_type === 'Anime';
+export const typeLabel = (item: Partial<Title>) => (isAnime(item) ? (item.title_type === 'Anime Movie' ? 'Anime movie' : 'Anime') : isSeries(item) ? 'Series' : 'Movie');
+
+// Where a title's details and its streams come from.
+export const titlePath = (id: string) => (isAnime(id) ? `/api/anime/${anilistId(id)}` : `/api/movies/${id}`);
+// client=app: MKV comes as the original file (seekable), not converted.
+export function playPath(id: string, { season, episode, exclude = [], refresh = false }: { season?: number; episode?: number; exclude?: string[]; refresh?: boolean }) {
+  const q = new URLSearchParams({ client: 'app' });
+  if (isAnime(id)) q.set('episode', String(episode || 1));
+  else if (season) { q.set('season', String(season)); q.set('episode', String(episode)); }
+  if (exclude.length) q.set('exclude', exclude.join(','));
+  if (refresh) q.set('refresh', '1');
+  return isAnime(id) ? `/api/anime/${anilistId(id)}/play?${q}` : `/api/movies/play/${id}?${q}`;
+}
 
 // Cinemeta artwork exists for every IMDb title.
 const art = (kind: string, size: string, id: string) => `https://images.metahub.space/${kind}/${size}/${id}/img`;
-export const posterUrl = (item: Partial<Title>, size = 'small') => (size === 'small' && item.poster_url) || (item.imdb_id ? art('poster', size, item.imdb_id) : '');
-export const backdropUrl = (item: Partial<Title>, size = 'medium') => (size !== 'small' && item.backdrop_url) || (item.imdb_id ? art('background', size, item.imdb_id) : '');
-export const logoUrl = (item: Partial<Title>) => (item.imdb_id ? art('logo', 'medium', item.imdb_id) : '');
+// Anime artwork comes from AniList (cover, banner); anime has no logos.
+export const posterUrl = (item: Partial<Title>, size = 'small') => (isAnime(item) ? item.poster_url || '' : (size === 'small' && item.poster_url) || (item.imdb_id ? art('poster', size, item.imdb_id) : ''));
+export const backdropUrl = (item: Partial<Title>, size = 'medium') => (isAnime(item) ? item.backdrop_url || item.poster_url || '' : (size !== 'small' && item.backdrop_url) || (item.imdb_id ? art('background', size, item.imdb_id) : ''));
+// Small (480 px, ~12 KB) version of the backdrop, shown while the full one loads.
+export const backdropPreview = (item: Partial<Title>) => (isAnime(item) || !item.imdb_id ? '' : art('background', 'small', item.imdb_id));
+export const logoUrl = (item: Partial<Title>) => (item.imdb_id && !isAnime(item) ? art('logo', 'medium', item.imdb_id) : '');
 
 export function runtimeLabel(minutes?: number) {
   const m = Number(minutes);
@@ -75,7 +101,7 @@ export function recent(items: Title[]) {
 
 // Small summary kept in My List / Continue watching.
 export const summary = (t: Title): Title => ({
-  imdb_id: t.imdb_id, title: t.title, title_type: t.title_type, release_year: t.release_year,
+  imdb_id: t.imdb_id, title: t.title, ...(t.kind ? { kind: t.kind, anilist_id: t.anilist_id } : {}), title_type: t.title_type, release_year: t.release_year,
   poster_url: t.poster_url, backdrop_url: t.backdrop_url, runtime_minutes: t.runtime_minutes, genres: t.genres?.slice(0, 3),
 });
 

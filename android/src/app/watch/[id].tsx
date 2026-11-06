@@ -12,7 +12,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Button, Focusable } from '../../components/ui';
-import { BASE, getJSON, nextEpisode, type PlayResponse, type Stream, type Title } from '../../lib/api';
+import { BASE, getJSON, isAnime, nextEpisode, playPath, titlePath, type PlayResponse, type Stream, type Title } from '../../lib/api';
 import { useLibrary } from '../../lib/library';
 import { C, F } from '../../lib/theme';
 
@@ -60,16 +60,14 @@ export default function Watch() {
     return () => { ScreenOrientation.unlockAsync().catch(() => {}); };
   }, []);
 
-  useEffect(() => { getJSON<{ data: Title }>(`/api/movies/${id}`, { timeout: 90000 }).then(b => setTitle(b.data)).catch(() => {}); }, [id]);
+  useEffect(() => { getJSON<{ data: Title }>(titlePath(id), { timeout: 90000 }).then(b => setTitle(b.data)).catch(() => {}); }, [id]);
 
   // Ask the server for sources.
   useEffect(() => {
     let live = true;
-    const q = new URLSearchParams();
-    if (season) { q.set('season', String(season)); q.set('episode', String(episode)); }
-    if (request.exclude.length) q.set('exclude', request.exclude.join(','));
-    if (request.refresh) q.set('refresh', '1');
-    getJSON<PlayResponse>(`/api/movies/play/${id}?${q}`, { timeout: 120000, fresh: true })
+    // client=app: MKV comes as the original file through the relay, so ExoPlayer
+    // can seek in it by byte range; nothing is converted on the server.
+    getJSON<PlayResponse>(playPath(id, { season, episode, exclude: request.exclude, refresh: request.refresh }), { timeout: 120000, fresh: true })
       .then(body => {
         if (!live) return;
         if (!body.streams?.length) { setAnswer({ key: requestKey, list: [], error: 'No playable source was found for this title right now.' }); return; }
@@ -80,14 +78,12 @@ export default function Watch() {
   }, [id, season, episode, request, requestKey]);
 
   const source = streams?.list[index];
-  // Load the chosen source; converted (remuxed) streams start at the offset on the server.
+  // Load the chosen source and resume where it stopped (seek inside the file).
   useEffect(() => {
     if (!source) return;
-    const remuxed = Boolean(source.remuxed);
     const start = Math.floor(offset.current);
-    const uri = BASE + source.link + (remuxed && start > 0 ? `${source.link.includes('?') ? '&' : '?'}start=${start}` : '');
-    player.replaceAsync({ uri, contentType: source.type === 'hls' ? 'hls' : 'progressive', metadata: { title: title?.title } })
-      .then(() => { if (!remuxed && start > 0) player.currentTime = start; player.play(); })
+    player.replaceAsync({ uri: BASE + source.link, contentType: source.type === 'hls' ? 'hls' : 'progressive', metadata: { title: title?.title } })
+      .then(() => { if (start > 0) player.currentTime = start; player.play(); })
       .catch(() => fail());
   }, [source, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,7 +95,7 @@ export default function Watch() {
     if (!request.refresh) { setRequest(r => ({ ...r, refresh: true, serial: r.serial + 1 })); return; }
     setFatal({ key: requestKey, message: 'These sources could not play. Try again later.' });
   }
-  const position = () => (source?.remuxed ? offset.current : 0) + (player.currentTime || 0);
+  const position = () => player.currentTime || 0;
 
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') setPlayed({ key: sourceKey, ready: true });
@@ -110,8 +106,8 @@ export default function Watch() {
     const now = Date.now(), st = stats.current;
     if (player.playing && st.lastTick) st.played += Math.min(2, (now - st.lastTick) / 1000);
     st.lastTick = now;
-    const pos = (source?.remuxed ? offset.current : 0) + currentTime;
-    const duration = player.duration > 0 ? (source?.remuxed ? offset.current + player.duration : player.duration) : null;
+    const pos = currentTime;
+    const duration = player.duration > 0 ? player.duration : null;
     if (title && now - st.lastSave > 10000 && pos > 5) {
       st.lastSave = now;
       lib.saveProgress({ data: title, season, episode, position: pos, duration, completed: Boolean(duration && pos > duration - 60) });
@@ -167,7 +163,7 @@ export default function Watch() {
           </Focusable>
           <View style={{ flex: 1 }}>
             <Text style={w.title} numberOfLines={1}>{title?.title || ''}</Text>
-            {!!season && <Text style={[w.sub, { textAlign: 'left' }]}>Season {season} · Episode {episode}</Text>}
+            {!!season && <Text style={[w.sub, { textAlign: 'left' }]}>{isAnime(id) ? `Episode ${episode}` : `Season ${season} · Episode ${episode}`}</Text>}
           </View>
         </View>
       )}
