@@ -28,6 +28,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: icon('home') }} />
       <Tabs.Screen name="movies" options={{ title: 'Movies', tabBarIcon: icon('film') }} />
       <Tabs.Screen name="series" options={{ title: 'Series', tabBarIcon: icon('tv') }} />
+      <Tabs.Screen name="anime" options={{ title: 'Anime', tabBarIcon: icon('sparkles') }} />
       <Tabs.Screen name="search" options={{ title: 'Search', tabBarIcon: icon('search') }} />
       <Tabs.Screen name="mylist" options={{ title: 'My List', tabBarIcon: icon('bookmark') }} />
     </Tabs>

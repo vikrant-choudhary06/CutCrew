@@ -91,6 +91,9 @@ export const ratingLabel = (rating?: number) => (Number(rating) > 0 ? Number(rat
 
 export const GENRES = ['Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary', 'Drama', 'Family', 'Fantasy',
   'History', 'Horror', 'Music', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'];
+// AniList's genres, as the website's anime page lists them.
+export const ANIME_GENRES = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mecha', 'Music', 'Mystery',
+  'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller'];
 
 // Released in the last year or so, newest first.
 export function recent(items: Title[]) {

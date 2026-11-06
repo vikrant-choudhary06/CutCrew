@@ -17,6 +17,8 @@ export default function Search() {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<{ query: string; items: Title[]; error: string }>({ query: '', items: [], error: '' });
   const [recent, setRecent] = useState<string[]>([]);
+  // Anime comes from AniList in its own request, so a slow answer there never holds up the rest.
+  const [anime, setAnime] = useState<{ query: string; items: Title[] }>({ query: '', items: [] });
   const columns = Math.max(3, Math.floor((width - gutter * 2 + 12) / (poster + 12)));
   const cardWidth = Math.floor((width - gutter * 2 - (columns - 1) * 12) / columns);
 
@@ -26,24 +28,37 @@ export default function Search() {
   useEffect(() => {
     if (!query) return;
     let live = true;
+    const remember = () => setRecent(list => { const next = [query, ...list.filter(x => x.toLowerCase() !== query.toLowerCase())].slice(0, 8); AsyncStorage.setItem(RECENT, JSON.stringify(next)).catch(() => {}); return next; });
     getJSON<{ data: Title[] }>('/api/movies/search?query=' + encodeURIComponent(query))
       .then(body => {
         if (!live) return;
         const items = (body.data || []).filter(x => x.imdb_id);
         setResult({ query, items, error: '' });
-        if (items.length) setRecent(list => { const next = [query, ...list.filter(x => x.toLowerCase() !== query.toLowerCase())].slice(0, 8); AsyncStorage.setItem(RECENT, JSON.stringify(next)).catch(() => {}); return next; });
+        if (items.length) remember();
       })
       .catch((e: Error) => { if (live) setResult({ query, items: [], error: e.message }); });
+    getJSON<{ data: Title[] }>('/api/anime/search?q=' + encodeURIComponent(query))
+      .then(body => {
+        if (!live) return;
+        const items = (body.data || []).filter(x => x.imdb_id);
+        setAnime({ query, items });
+        if (items.length) remember();
+      })
+      .catch(() => { if (live) setAnime({ query, items: [] }); });
     return () => { live = false; };
   }, [query]);
 
   const searching = Boolean(query) && result.query !== query;
+  const animeItems = anime.query === query ? anime.items : [];
+  // With no movie or series match, wait for the anime answer before saying "No results".
+  const animePending = Boolean(query) && anime.query !== query;
+  const total = result.items.length + animeItems.length;
   return (
     <View style={{ flex: 1, backgroundColor: C.night, paddingTop: insets.top + 12 }}>
       <View style={[s.field, { marginHorizontal: gutter }]}>
         <Ionicons name="search" size={20} color={C.dust} />
-        <TextInput value={text} onChangeText={setText} placeholder="Search movies and series" placeholderTextColor={C.dust}
-          style={s.input} returnKeyType="search" autoCorrect={false} onSubmitEditing={() => setQuery(text.trim())} accessibilityLabel="Search movies and series" />
+        <TextInput value={text} onChangeText={setText} placeholder="Search movies, series and anime" placeholderTextColor={C.dust}
+          style={s.input} returnKeyType="search" autoCorrect={false} onSubmitEditing={() => setQuery(text.trim())} accessibilityLabel="Search movies, series and anime" />
         {!!text && <Ionicons name="close" size={20} color={C.dust} onPress={() => { setText(''); setQuery(''); }} accessibilityLabel="Clear search" />}
       </View>
       {!query ? (
@@ -54,11 +69,12 @@ export default function Search() {
           </View>}
           <Row title="Popular right now" path="/api/movies/trending" />
         </ScrollView>
-      ) : searching ? <Loading label="Searching…" />
-        : result.error ? <Notice title="Search is unavailable right now." body={result.error} />
-          : !result.items.length ? <Notice title={`No results for “${query}”.`} body="Check the spelling or try a shorter title." />
+      ) : searching || (!result.items.length && animePending) ? <Loading label="Searching…" />
+        : !total && result.error ? <Notice title="Search is unavailable right now." body={result.error} />
+          : !total ? <Notice title={`No results for “${query}”.`} body="Check the spelling or try a shorter title." />
             : <FlatList key={columns} data={result.items} numColumns={columns} keyExtractor={x => x.imdb_id}
-                ListHeaderComponent={<Text style={[s.count, { paddingHorizontal: gutter }]}>{result.items.length} result{result.items.length === 1 ? '' : 's'} for “{query}”</Text>}
+                ListHeaderComponent={<Text style={[s.count, { paddingHorizontal: gutter }]}>{total} result{total === 1 ? '' : 's'} for “{query}”</Text>}
+                ListFooterComponent={animeItems.length ? <View style={{ marginTop: 10 }}><Row title="Anime" items={animeItems} limit={24} /></View> : undefined}
                 columnWrapperStyle={{ gap: 12, paddingHorizontal: gutter }} contentContainerStyle={{ gap: 18, paddingVertical: 14 }}
                 renderItem={({ item }) => <PosterCard item={item} width={cardWidth} />} />}
     </View>
