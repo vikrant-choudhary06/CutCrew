@@ -49,7 +49,7 @@ const describe = s => `${s.provider}/${s.type}${s.height ? '/' + s.height + 'p' 
       const [first] = audio.withChoice(audio.preferLanguage(all, lang, { client }), lang, client);
       if (!first) return { lang, stream: 'none' };
       const track = first.audioTracks?.find(t => t.index === first.audioIndex);
-      return { lang, stream: describe(first), track: track ? track.label : '(unknown: file default)', matched: first.audioMatched ?? null };
+      return { lang, stream: describe(first), track: track ? track.label + (track.codec ? ' (' + track.codec + ')' : '') : '(unknown: file default)', matched: first.audioMatched ?? null };
     };
     // Files whose tracks were not read in time: read once more with a longer limit, to see why.
     for (const run of runs) {

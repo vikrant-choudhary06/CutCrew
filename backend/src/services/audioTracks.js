@@ -120,7 +120,21 @@ function preferLanguage(streams, preferred, { client = 'web' } = {}) {
   if (!preferred) return streams;
   const heavy = s => client === 'web' && s.type === 'mkv' && (s.hevc || (s.height || 0) > 720);
   const boost = s => !heavy(s) && (!s.height || s.height >= 480) && playableLanguages(s, client).includes(preferred);
-  return streams.map((s, i) => ({ s, i })).sort((a, b) => (heavy(a.s) - heavy(b.s)) || (boost(b.s) - boost(a.s)) || a.i - b.i).map(x => x.s);
+  const cost = s => (client === 'app' ? phoneCost(s, preferred) : 0);
+  return streams.map((s, i) => ({ s, i, c: cost(s) })).sort((a, b) => (heavy(a.s) - heavy(b.s)) || (boost(b.s) - boost(a.s)) || a.c - b.c || a.i - b.i).map(x => x.s);
+}
+
+// How likely a phone is to fail on a stream (higher is worse): 4K video, and
+// for the track that would play, E-AC3 (some phones) or DTS / TrueHD (most
+// phones) audio. Unknown codecs and heights cost nothing.
+function phoneCost(stream, preferred) {
+  let cost = (stream.height || 0) > 1080 ? 2 : 0;
+  const tracks = stream.audioTracks || [];
+  const pick = chooseTrack(tracks, preferred);
+  const codec = pick ? tracks.find(t => t.index === pick.index)?.codec || '' : '';
+  if (/dts|truehd|mlp/i.test(codec)) cost += 2;
+  else if (/eac3/i.test(codec)) cost += 1;
+  return cost;
 }
 
 // Adds the chosen track to each stream: { audioIndex, audioLanguage, audioMatched }.
@@ -173,5 +187,5 @@ function cleanTracks(input) {
 
 module.exports = {
   NAMES, detectLanguage, languageName, trackLabel, fromProbe, fromPlaylist, preferredLanguage, chooseTrack, playableLanguages,
-  preferLanguage, withChoice, readTracks, addTracks, setTracks, cleanTracks,
+  preferLanguage, phoneCost, withChoice, readTracks, addTracks, setTracks, cleanTracks,
 };

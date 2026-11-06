@@ -160,3 +160,21 @@ test('a slow file inspection never makes a source time out; it finishes in the b
   await result.inspection;
   assert.deepEqual(result.streams[0].audioTracks.map(t => t.label), ['Hindi', 'English']);
 });
+
+test('on phones, after the language, 1080p and AAC come before 4K and E-AC3 / DTS', () => {
+  const t = (language, codec, index = 0) => ({ index, language, codec, label: language, title: '', default: index === 0 });
+  const uhd = { link: 'uhd', type: 'mkv', height: 2160, hevc: true, audioTracks: [t('hi', 'aac'), t('en', 'aac', 1)] };
+  const eac3 = { link: 'eac3', type: 'mkv', height: 1080, audioTracks: [t('hi', 'eac3'), t('en', 'eac3', 1)] };
+  const dts = { link: 'dts', type: 'mkv', height: 1080, audioTracks: [t('hi', 'aac'), t('en', 'dts', 1)] };
+  const aac = { link: 'aac', type: 'mkv', height: 720, audioTracks: [t('hi', 'aac'), t('en', 'aac', 1)] };
+  const tamilOnly = { link: 'ta', type: 'mkv', height: 1080, audioTracks: [t('ta', 'aac')] };
+  const order = (list, lang) => audio.preferLanguage(list, lang, { client: 'app' }).map(s => s.link).join(' ');
+  assert.equal(order([uhd, eac3, dts, aac], 'en'), 'aac eac3 uhd dts');
+  // For Hindi the DTS file plays its AAC Hindi track, so it is fine.
+  assert.equal(order([uhd, eac3, dts, aac], 'hi'), 'dts aac eac3 uhd');
+  // The language still comes first: a 4K file with it beats a phone-friendly one without.
+  assert.equal(order([tamilOnly, uhd], 'hi'), 'uhd ta');
+  // The website keeps its own order: it converts the audio anyway, and every MKV over 720p is heavy there.
+  assert.equal(audio.preferLanguage([uhd, eac3, aac], 'en', { client: 'web' }).map(s => s.link).join(' '), 'aac uhd eac3');
+  assert.equal(audio.phoneCost({ height: 0 }, 'hi'), 0);
+});
