@@ -85,8 +85,10 @@ export default function Watch() {
   useEffect(() => {
     if (!source) return;
     const start = Math.floor(offset.current);
+    pendingSeek.current = start;
+    console.log(`[CutCrew] playing ${id} from ${start}s (${source.type})`);
     player.replaceAsync({ uri: BASE + source.link, contentType: source.type === 'hls' ? 'hls' : 'progressive', metadata: { title: title?.title } })
-      .then(() => { pendingSeek.current = start; player.play(); })
+      .then(() => { if (player.status === 'readyToPlay') jumpToStart(); player.play(); })
       .catch(() => fail());
   }, [source, reload]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -99,10 +101,13 @@ export default function Watch() {
     setFatal({ key: requestKey, message: 'These sources could not play. Try again later.' });
   }
   const position = () => player.currentTime || 0;
+  function jumpToStart() {
+    if (pendingSeek.current > 0) { player.currentTime = pendingSeek.current; pendingSeek.current = 0; }
+  }
 
   useEventListener(player, 'statusChange', ({ status: next }) => {
     if (next === 'readyToPlay') {
-      if (pendingSeek.current > 0) { player.currentTime = pendingSeek.current; pendingSeek.current = 0; }
+      jumpToStart();
       setPlayed({ key: sourceKey, ready: true });
     }
     else if (next === 'error') fail();
