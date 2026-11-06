@@ -33,7 +33,8 @@ function readRelease() {
 router.get('/app/android', (_req, res) => {
   const release = readRelease();
   if (!release) return res.status(404).json({ message: 'No release information' });
-  res.set('Cache-Control', 'public, max-age=300').json(release);
+  // Not cached: the phone's HTTP cache would hide a new release.
+  res.set('Cache-Control', 'no-store').json(release);
 });
 
 // ---- Expo Updates ----------------------------------------------------------
@@ -112,7 +113,9 @@ router.get('/updates/assets', (req, res) => {
   const target = path.resolve(root, file);
   if (!target.startsWith(root + path.sep) || !fs.existsSync(target)) return res.status(404).json({ message: 'Asset not found' });
   const ext = path.extname(target).slice(1).toLowerCase();
-  res.set('Cache-Control', 'public, max-age=31536000, immutable').type(TYPES[ext] || 'application/octet-stream').sendFile(target);
+  res.set('Cache-Control', 'public, max-age=31536000, immutable').type(TYPES[ext] || 'application/octet-stream')
+    // The updates live under .local, which sendFile hides unless told otherwise.
+    .sendFile(target, { dotfiles: 'allow' });
 });
 
 module.exports = router;

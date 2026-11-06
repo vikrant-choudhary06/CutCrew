@@ -8,7 +8,8 @@ const os = require('node:os');
 const path = require('node:path');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'updates-'));
-process.env.UPDATES_DIR = path.join(dir, 'updates');
+// Under a dot folder, like the server's .local/updates.
+process.env.UPDATES_DIR = path.join(dir, '.local', 'updates');
 process.env.APP_RELEASE_FILE = path.join(dir, 'android.json');
 const express = require('express');
 const app = express().use('/api', require('../src/routes/appUpdates'));
@@ -25,6 +26,7 @@ test('latest APK info is served, and unsafe release info is refused', async () =
   fs.writeFileSync(process.env.APP_RELEASE_FILE, JSON.stringify({ version: '1.0.3', versionCode: 4, apkUrl: 'https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk', notes: 'Faster home', sizeMb: 72 }));
   const ok = await get('/api/app/android');
   assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('cache-control'), 'no-store', 'phones must not cache release info');
   assert.deepEqual(JSON.parse(ok.text), { version: '1.0.3', versionCode: 4, apkUrl: 'https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk', notes: 'Faster home', sizeMb: 72 });
   // A link to an unknown host or plain http is never offered; the copy in git is used instead.
   fs.writeFileSync(process.env.APP_RELEASE_FILE, JSON.stringify({ version: '9.9.9', versionCode: 99, apkUrl: 'http://evil.example/x.apk' }));
