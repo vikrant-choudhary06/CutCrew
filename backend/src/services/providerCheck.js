@@ -45,7 +45,10 @@ function latestSources() {
   try {
     const report = JSON.parse(fs.readFileSync(path.join(reportDir(), SOURCES_REPORT), 'utf8'));
     const state = require('./streamSources').sourceState();
-    return { checkedAt: report.checkedAt, titles: report.titles,
+    // Sources the weekly check switched off, shown as an alert on the admin page.
+    const alerts = Object.entries(state).filter(([, s]) => s?.disabled)
+      .map(([id, s]) => `${id} is switched off: nothing played in ${s.failures} weekly checks in a row (last ${String(s.lastChecked || '').slice(0, 10)})`);
+    return { checkedAt: report.checkedAt, titles: report.titles, alerts,
       bySource: Object.fromEntries(Object.entries(report.bySource || {}).map(([id, s]) => [id, { verified: s.verified, checked: s.checked, statuses: s.statuses, formats: s.formats, off: Boolean(state[id]?.disabled), failedChecks: state[id]?.failures || 0 }])) };
   } catch {
     return null;

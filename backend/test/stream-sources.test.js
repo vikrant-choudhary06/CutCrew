@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const sources = require('../src/services/streamSources');
+const sourceProbe = require('../src/services/sourceProbe');
 
 const movie = { imdb_id: 'tt15354916', title: 'Jawan', release_year: 2023, title_type: 'Movie' };
 const episodeTitle = { imdb_id: 'tt0903747', title: 'Breaking Bad', release_year: 2008, title_type: 'TV Series', season: 2, episode: 5 };
@@ -177,35 +178,7 @@ test('everything is waited for while nothing plays yet, and excluded sources are
   await assert.rejects(sources.collectStreams(movie, { order: ['a'], run, waitMs: 50 }), error => error.status === 503 && Array.isArray(error.sources));
 });
 
-test('source order follows STREAM_SOURCES, needs your own Pengu/Flix link, and skips sources the weekly check turned off', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sources-'));
-  const file = path.join(dir, 'state.json');
-  withEnv({ STREAM_SOURCES: 'desiflix,moviebox,pengu,flix_emby,nope', ENABLED_PROVIDERS: '4khdhub', SOURCE_STATE_FILE: file, PENGU_MANIFEST_URL: undefined, PENGU_AUTH_TOKEN: undefined, PENGU_BASE_URL: undefined, FLIX_STREAMS_MANIFEST_URL: 'https://flix.example/u/me/manifest.json', MOVIEBOX_KEY_B64: 'test-key', MOVIEBOX_KEY_B64_ALT: 'test-key-2' }, () => {
-    sources.resetStateCache();
-    assert.deepEqual(sources.sourceOrder(), ['desiflix', 'moviebox', 'flix_emby', '4khdhub']);
-    fs.writeFileSync(file, JSON.stringify({ moviebox: { failures: 2, disabled: true } }));
-    sources.resetStateCache();
-    assert.deepEqual(sources.sourceOrder(), ['desiflix', 'flix_emby', '4khdhub']);
-    assert.ok(sources.sourceOrder({ includeOff: true }).includes('moviebox'), 'the weekly check still tests it');
-  });
-  sources.resetStateCache();
-  fs.rmSync(dir, { recursive: true, force: true });
-});
 
-test('copied Doom providers carry no one else\'s links or keys', () => {
-  const dir = path.join(__dirname, '../vendor/doom-addon');
-  const read = file => fs.readFileSync(path.join(dir, file), 'utf8');
-  for (const file of ['pengu.js', 'flix_streams_emby.js', 'flix_streams_other.js']) {
-    assert.match(read(file), /const DEFAULT_MANIFEST_URL = "";/, file);
-    assert.doesNotMatch(read(file), /auth_token%22%3A%22\w|flix-streams\/u\/\w/, file);
-  }
-  const moviebox = read('moviebox.js');
-  assert.match(moviebox, /var TMDB_API_KEY = process\.env\.TMDB_API_KEY \|\| "";/);
-  assert.match(moviebox, /var KEY_B64_DEFAULT = process\.env\.MOVIEBOX_KEY_B64 \|\| "";/);
-  assert.match(moviebox, /var KEY_B64_ALT = process\.env\.MOVIEBOX_KEY_B64_ALT \|\| "";/);
-  assert.doesNotMatch(moviebox, /api_key=[0-9a-f]{32}|"[A-Za-z0-9+/]{40,}={0,2}"/);
-  assert.ok(fs.existsSync(path.join(dir, 'LICENSE')));
-});
 
 test('Internet Archive only runs for old films, and MovieBox gets a longer limit', async () => {
   assert.equal(sources.skipReason('internetArchive', { release_year: 2014 }), 'only for films up to 1980');
@@ -215,4 +188,90 @@ test('Internet Archive only runs for old films, and MovieBox gets a longer limit
   assert.deepEqual(skipped.streams, []);
   assert.equal(skipped.ms, 0);
   assert.equal(sources.SOURCES.moviebox.timeoutMs(), 25000);
+});
+
+test('only direct url streams are used; torrents, YouTube, web pages and notices are skipped', () => {
+  assert.equal(sources.fromAddon({ infoHash: 'abc', url: 'https://x/v.mp4' }, 'hdhub'), null);
+  assert.equal(sources.fromAddon({ ytId: 'abc', url: 'https://x/v.mp4' }, 'hdhub'), null);
+  assert.equal(sources.fromAddon({ externalUrl: 'https://site.example/watch' }, 'hdhub'), null);
+  assert.equal(sources.fromAddon({ name: 'PenguPlay', title: 'You must sign in', url: 'https://pengu.uk/signin.mp4' }, 'pengu'), null);
+  assert.ok(sources.fromAddon({ name: 'HdHub 1080p', title: 'Jawan.2023.1080p.Hindi.WEB-DL.mkv', url: 'https://pixeldrain.dev/api/file/x' }, 'hdhub'));
+});
+
+test('STREMIO_ADDONS sets the add-ons; PenguPlay needs a signed-in link; SOURCE_<NAME>=off turns one off', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sources-'));
+  const file = path.join(dir, 'state.json');
+  withEnv({
+    STREMIO_ADDONS: 'desiflix=https://d.example/manifest.json,hdhub=https://h.example/,censored=https://c.example,pengu=https://pengu.uk,bad=ftp://x',
+    STREAM_SOURCES: 'desiflix,hdhub,censored,pengu,moviebox,4khdhub,internetArchive,hdhub4u,nope',
+    ENABLED_PROVIDERS: '4khdhub,hdhub4u', SOURCE_STATE_FILE: file, SOURCE_CENSORED: undefined, SOURCE_HDHUB: undefined,
+    MOVIEBOX_KEY_B64: 'test-key', MOVIEBOX_KEY_B64_ALT: 'test-key-2',
+  }, () => {
+    sources.resetStateCache();
+    assert.deepEqual(Object.keys(sources.stremioAddons()), ['desiflix', 'hdhub', 'censored', 'pengu']);
+    assert.equal(sources.sourceDef('desiflix').base(), 'https://d.example');
+    assert.equal(sources.sourceDef('hdhub').base(), 'https://h.example');
+    assert.equal(sources.sourceDef('censored').timeoutMs(), 20000);
+    assert.equal(sources.sourceDef('hdhub').timeoutMs(), 10000);
+    // pengu.uk without a config path only offers a sign-in notice.
+    assert.deepEqual(sources.sourceOrder(), ['desiflix', 'hdhub', 'censored', 'moviebox', '4khdhub', 'hdhub4u']);
+    process.env.STREMIO_ADDONS += ',pengu=https://pengu.uk/%7Bmy-config%7D';
+    assert.ok(sources.sourceOrder().includes('pengu'));
+    process.env.SOURCE_CENSORED = 'off';
+    assert.ok(!sources.sourceOrder().includes('censored'));
+    fs.writeFileSync(file, JSON.stringify({ hdhub: { failures: 2, disabled: true } }));
+    sources.resetStateCache();
+    assert.ok(!sources.sourceOrder().includes('hdhub'), 'switched off by the weekly check');
+    assert.ok(sources.sourceOrder({ includeOff: true }).includes('hdhub'), 'but the weekly check still tests it');
+    delete process.env.MOVIEBOX_KEY_B64;
+    assert.ok(!sources.sourceOrder().includes('moviebox'), 'MovieBox needs its keys');
+  });
+  sources.resetStateCache();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('Indian titles put Hindi audio first; others put English before Hindi', () => {
+  const list = [
+    { link: 'en', provider: 'hdhub', type: 'mp4', height: 1080, audio: ['English'] },
+    { link: 'hi', provider: 'hdhub', type: 'mp4', height: 1080, audio: ['Hindi'] },
+    { link: 'ta', provider: 'hdhub', type: 'mp4', height: 1080, audio: ['Tamil'] },
+  ];
+  assert.deepEqual(sources.rank(list, ['hdhub'], { indian: true }).map(s => s.link), ['hi', 'en', 'ta']);
+  assert.deepEqual(sources.rank(list, ['hdhub']).map(s => s.link), ['en', 'hi', 'ta']);
+  assert.ok(sources.isIndian({ countries: ['India'] }));
+  assert.ok(sources.isIndian({ country: 'India, United States' }));
+  assert.ok(!sources.isIndian({ countries: ['United States'] }));
+});
+
+test('expired links are dropped by the probe and the next link is used', async () => {
+  const fetch = async () => json({ streams: [
+    { url: 'https://h.example/expired-1.mkv', title: '1080p Hindi' },
+    { url: 'https://h.example/expired-2.mkv', title: '1080p Hindi' },
+    { url: 'https://h.example/live.mkv', title: '720p Hindi' },
+  ] });
+  const probed = [];
+  const check = async stream => { probed.push(stream.link); return /expired/.test(stream.link) ? { ok: false, reason: 'http-403' } : { ok: true, format: 'mkv', seekable: true }; };
+  const result = await sources.runSource('desiflix', movie, { fetch, probe: streams => sourceProbe.filterPlayable(streams, { check }) });
+  assert.deepEqual(result.streams.map(s => s.link), ['https://h.example/live.mkv']);
+  assert.equal(probed.length, 3);
+});
+
+test('IMDb to TMDB comes from Cinemeta and is cached', async () => {
+  sources._tmdbCache.clear();
+  let calls = 0;
+  const fetch = async url => { calls++; assert.match(url, /\/meta\/movie\/tt1375666\.json$/); return json({ meta: { moviedb_id: 27205 } }); };
+  assert.equal(await sources.tmdbIdFor('tt1375666', false, { fetch }), '27205');
+  assert.equal(await sources.tmdbIdFor('tt1375666', false, { fetch }), '27205');
+  assert.equal(calls, 1);
+  sources._tmdbCache.clear();
+});
+
+test('the vendored MovieBox keeps no keys in git, and Pengu/Flix copies are gone', () => {
+  const dir = path.join(__dirname, '../vendor/doom-addon');
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['LICENSE', 'SOURCE.md', 'moviebox.js']);
+  const moviebox = fs.readFileSync(path.join(dir, 'moviebox.js'), 'utf8');
+  assert.match(moviebox, /var TMDB_API_KEY = process\.env\.TMDB_API_KEY \|\| "";/);
+  assert.match(moviebox, /var KEY_B64_DEFAULT = process\.env\.MOVIEBOX_KEY_B64 \|\| "";/);
+  assert.match(moviebox, /var KEY_B64_ALT = process\.env\.MOVIEBOX_KEY_B64_ALT \|\| "";/);
+  assert.doesNotMatch(moviebox, /api_key=[0-9a-f]{32}|"[A-Za-z0-9+/]{40,}={0,2}"/);
 });

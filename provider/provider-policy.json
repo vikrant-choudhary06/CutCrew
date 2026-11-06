@@ -16,13 +16,13 @@
   "disabledByDefaultReason": "Not verified for browser playback in the current live checks.",
   "streamSources": [
     "desiflix",
+    "hdhub",
+    "censored",
+    "pengu",
     "moviebox",
     "4khdhub",
-    "pengu",
-    "flix_emby",
-    "flix_other",
-    "hdhub4u",
-    "internetArchive"
+    "internetArchive",
+    "hdhub4u"
   ],
-  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix is a Stremio add-on API; moviebox, pengu, flix_emby and flix_other are Doom-addon providers in backend/vendor/doom-addon (pengu and the flix ones only run with your own link in .env); the rest are vega-style providers from defaultProviders and also need ENABLED_PROVIDERS. vega and luxMovies refuse data-centre IPs, so they stay out of the server list but work on a PC."
+  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix, hdhub, censored and pengu are Stremio add-ons listed in STREMIO_ADDONS (pengu only with your own signed-in link); moviebox is the Doom-addon provider in backend/vendor/doom-addon (needs its keys in .env); 4khdhub, internetArchive and hdhub4u are vega-style providers and also need ENABLED_PROVIDERS. vega and luxMovies refuse data-centre IPs, so they stay out of the server list but work on a PC."
 }

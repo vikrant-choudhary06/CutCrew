@@ -1,7 +1,8 @@
 // Multi-source playback. Three kinds of sources, one stream format:
 //   vega    - CutCrew's provider modules (provider/dist), via attemptProvider()
-//   stremio - Stremio add-on APIs (/stream/<type>/<imdbId>.json), e.g. DesiFlix
-//   doom    - Doom-addon provider files (backend/vendor/doom-addon), getStreams(tmdbId, ...)
+//   stremio - Stremio add-on APIs (/stream/<type>/<imdbId>.json): DesiFlix,
+//             HdHub, CENSORED, PenguPlay (listed in STREMIO_ADDONS)
+//   doom    - Doom-addon MovieBox (backend/vendor/doom-addon), getStreams(tmdbId, ...)
 // All enabled sources run in parallel, each with its own time limit. A slow or
 // failing source is skipped without holding up the others. Results are
 // probed, de-duplicated and ranked (web-playable first, then source order,
@@ -15,22 +16,44 @@ const sourceProbe = require('./sourceProbe');
 const providerStatus = require('./providerStatus');
 
 const DOOM_DIR = path.resolve(__dirname, '../../vendor/doom-addon');
-const DEFAULT_ORDER = ['desiflix', 'moviebox', '4khdhub', 'pengu', 'flix_emby', 'flix_other', 'hdhub4u', 'internetArchive'];
+const DEFAULT_ORDER = ['desiflix', 'hdhub', 'censored', 'pengu', 'moviebox', '4khdhub', 'internetArchive', 'hdhub4u'];
 const API_TIMEOUT_MS = Number(process.env.SOURCE_TIMEOUT_MS) || 10000;
 const VEGA_TIMEOUT_MS = Number(process.env.VEGA_SOURCE_TIMEOUT_MS) || 25000;
 const WAIT_MS = Number(process.env.SOURCE_WAIT_MS) || 10000;
 const stateFile = () => process.env.SOURCE_STATE_FILE || path.resolve(__dirname, '../../.local/provider-check/source-state.json');
 
-// Sources that are not vega provider folders. `configured` says whether the
-// source can run (Pengu and Flix-Streams need your own link in .env).
-const SOURCES = {
-  desiflix: { kind: 'stremio', label: 'DesiFlix', base: () => process.env.DESIFLIX_URL || 'https://manifest.desitvhub.eu.org' },
-  // MovieBox checks every stream it finds before answering, so it gets longer.
-  moviebox: { kind: 'doom', label: 'MovieBox', file: 'moviebox.js', timeoutMs: () => Number(process.env.MOVIEBOX_TIMEOUT_MS) || 25000, configured: () => Boolean(process.env.MOVIEBOX_KEY_B64 && process.env.MOVIEBOX_KEY_B64_ALT) },
-  pengu: { kind: 'doom', label: 'Pengu', file: 'pengu.js', configured: () => Boolean(process.env.PENGU_MANIFEST_URL || process.env.PENGU_BASE_URL || process.env.PENGU_AUTH_TOKEN) },
-  flix_emby: { kind: 'doom', label: 'Flix-Streams Emby', file: 'flix_streams_emby.js', configured: () => Boolean(process.env.FLIX_STREAMS_MANIFEST_URL || process.env.FLIX_STREAMS_BASE_URL) },
-  flix_other: { kind: 'doom', label: 'Flix-Streams', file: 'flix_streams_other.js', configured: () => Boolean(process.env.FLIX_STREAMS_MANIFEST_URL || process.env.FLIX_STREAMS_BASE_URL) },
+// Stremio add-ons: STREMIO_ADDONS="id=https://base,id=https://base". Without
+// it, the public DesiFlix, HdHub and CENSORED add-ons are used. PenguPlay only
+// answers with a "You must sign in" video unless the link carries your own
+// sign-in, so it runs only when its link has a path after the host.
+const DEFAULT_ADDONS = 'desiflix=https://manifest.desitvhub.eu.org,hdhub=https://hdhub.thevolecitor.qzz.io,censored=https://censoredaddon.vercel.app';
+const ADDON_INFO = {
+  desiflix: { label: 'DesiFlix' }, hdhub: { label: 'HdHub' }, pengu: { label: 'PenguPlay' },
+  // CENSORED gathers many sites and often needs 5–20 s.
+  censored: { label: 'CENSORED', timeoutMs: 20000 },
 };
+function stremioAddons() {
+  const addons = {};
+  for (const part of (process.env.STREMIO_ADDONS ?? DEFAULT_ADDONS).split(',')) {
+    const at = part.indexOf('=');
+    const id = part.slice(0, at).trim(), raw = part.slice(at + 1).trim();
+    if (at < 1 || !/^[a-z][a-z0-9_]{0,29}$/i.test(id) || !/^https:\/\/[^\s]+$/i.test(raw)) continue;
+    const base = raw.replace(/\/manifest\.json$/i, '').replace(/\/+$/, '');
+    addons[id] = {
+      kind: 'stremio', label: ADDON_INFO[id]?.label || id, base: () => base,
+      timeoutMs: () => Number(process.env[`${id.toUpperCase()}_TIMEOUT_MS`]) || ADDON_INFO[id]?.timeoutMs || API_TIMEOUT_MS,
+      configured: () => id !== 'pengu' || new URL(base).pathname.length > 1,
+    };
+  }
+  return addons;
+}
+
+// Doom-addon providers. MovieBox checks every stream it finds before
+// answering, so it gets longer; it needs its signing keys in .env.
+const SOURCES = {
+  moviebox: { kind: 'doom', label: 'MovieBox', file: 'moviebox.js', timeoutMs: () => Number(process.env.MOVIEBOX_TIMEOUT_MS) || 25000, configured: () => Boolean(process.env.MOVIEBOX_KEY_B64 && process.env.MOVIEBOX_KEY_B64_ALT) },
+};
+const sourceDef = id => stremioAddons()[id] || SOURCES[id] || null;
 
 // ---- Source list ---------------------------------------------------------
 
@@ -53,20 +76,25 @@ function policyOrder() {
   return DEFAULT_ORDER;
 }
 
-// STREAM_SOURCES lists the sources in order (remove a name to turn it off).
+// STREAM_SOURCES lists the sources in order (remove a name, or set
+// SOURCE_<NAME>=off, e.g. SOURCE_CENSORED=off, to turn one off).
 // Vega names also need to be installed and allowed by ENABLED_PROVIDERS.
 // Enabled vega providers missing from the list run last. A source the weekly
 // check turned off (see check-sources.cjs) is skipped until it passes again.
 function sourceOrder({ includeOff = false } = {}) {
   const wanted = (process.env.STREAM_SOURCES || policyOrder().join(',')).split(',').map(id => id.trim()).filter(Boolean);
   const vega = getAvailableProvidersLocal();
-  const list = [...new Set([...wanted, ...vega])].filter(id => (SOURCES[id] ? (!SOURCES[id].configured || SOURCES[id].configured()) : vega.includes(id)));
+  const list = [...new Set([...wanted, ...vega])].filter(id => {
+    if (process.env[`SOURCE_${id.toUpperCase()}`] === 'off') return false;
+    const def = sourceDef(id);
+    return def ? (!def.configured || def.configured()) : vega.includes(id);
+  });
   if (includeOff) return list;
   const state = sourceState();
   return list.filter(id => !state[id]?.disabled);
 }
-const kindOf = id => SOURCES[id]?.kind || 'vega';
-const labelOf = id => SOURCES[id]?.label || id;
+const kindOf = id => sourceDef(id)?.kind || 'vega';
+const labelOf = id => sourceDef(id)?.label || id;
 
 // ---- Parsing stream descriptions ------------------------------------------
 
@@ -104,10 +132,15 @@ function typeOf(link, filename, declared) {
   return 'mp4';
 }
 
-// Stremio / Doom stream object -> CutCrew stream.
+// Not a film: notices such as "You must sign in", sales or support links.
+const PLACEHOLDER = /\b(sign[\s-]?in|log[\s-]?in|subscribe|upgrade|donate|support us|discount|sale|legacy users?)\b/i;
+
+// Stremio / Doom stream object -> CutCrew stream. Only direct `url` streams:
+// torrents (infoHash), YouTube (ytId) and web pages (externalUrl) are skipped.
 function fromAddon(item, source) {
-  const link = item?.url || item?.externalUrl;
-  if (typeof link !== 'string') return null;
+  const link = item?.url;
+  if (typeof link !== 'string' || item.infoHash || item.ytId) return null;
+  if (PLACEHOLDER.test([item.name, item.title, item.description].filter(Boolean).join(' '))) return null;
   let url;
   try { url = validateUrl(link); } catch { return null; }
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
@@ -153,7 +186,7 @@ function stremioId(imdbId, season, episode) {
 }
 
 async function stremioStreams(source, title, { signal, fetch: get = fetch } = {}) {
-  const base = SOURCES[source].base().replace(/\/manifest\.json$/i, '').replace(/\/+$/, '');
+  const base = sourceDef(source).base();
   const series = isSeries(title);
   const url = `${base}/stream/${series ? 'series' : 'movie'}/${encodeURIComponent(stremioId(title.imdb_id, series && title.season, series && title.episode))}.json`;
   const response = await get(url, { headers: { Accept: 'application/json', 'User-Agent': 'CutCrew/1.0' }, signal });
@@ -202,7 +235,7 @@ async function runSource(source, title, options = {}) {
   const started = Date.now();
   const controller = new AbortController();
   const kind = kindOf(source);
-  const limit = options.timeoutMs || SOURCES[source]?.timeoutMs?.() || (kind === 'vega' ? VEGA_TIMEOUT_MS : API_TIMEOUT_MS);
+  const limit = options.timeoutMs || sourceDef(source)?.timeoutMs?.() || (kind === 'vega' ? VEGA_TIMEOUT_MS : API_TIMEOUT_MS);
   const probe = options.probe || (streams => sourceProbe.filterPlayable(streams, { signal: controller.signal }));
   try {
     const result = await withTimeout((async () => {
@@ -214,7 +247,8 @@ async function runSource(source, title, options = {}) {
       const found = kind === 'stremio' ? await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch })
         : await doomStreams(source, title, { load: options.load, fetch: options.fetch });
       // The probe checks only the first few, so put the best ones first.
-      const best = [...found].sort((a, b) => audioScore(a) - audioScore(b) || (b.height || 0) - (a.height || 0));
+      const indian = isIndian(title);
+      const best = [...found].sort((a, b) => audioScore(a, indian) - audioScore(b, indian) || (b.height || 0) - (a.height || 0));
       return { streams: best.length ? await probe(best) : [] };
     })(), limit, controller);
     const ms = Date.now() - started;
@@ -254,19 +288,22 @@ function dedupe(streams) {
 // heavy and still comes out at 720p (DesiFlix's 1080p files are often HEVC).
 // Then source order, then higher quality, then Hindi + English, Hindi, English.
 // Apps play MKV themselves, so they get plain source order and quality.
-// Hindi + English, then Hindi, then English, then unknown, then other languages.
-function audioScore(stream) {
+// Indian titles: Hindi first. Others: Hindi + English, then English, then Hindi.
+// Unknown audio comes before other languages.
+function audioScore(stream, indian = false) {
   const audio = stream.audio || [];
   const hindi = audio.includes('Hindi'), english = audio.includes('English');
-  return hindi && english ? 0 : hindi ? 1 : english ? 2 : audio.length ? 4 : 3;
+  if (indian) return hindi && english ? 0 : hindi ? 1 : english ? 2 : audio.length ? 4 : 3;
+  return hindi && english ? 0 : english ? 1 : hindi ? 2 : audio.length ? 4 : 3;
 }
+const isIndian = title => [title?.countries, title?.country].flat().filter(Boolean).some(value => /india/i.test(String(value)));
 
-function rank(streams, order, { client = 'web' } = {}) {
+function rank(streams, order, { client = 'web', indian = false } = {}) {
   const position = id => { const index = order.indexOf(id); return index < 0 ? order.length : index; };
   const tier = stream => (client === 'web' && stream.type === 'mkv' ? 1 : 0);
   const heavy = stream => (client === 'web' && stream.type === 'mkv' && (stream.hevc || (stream.height || 0) > 720) ? 1 : 0);
   return [...streams].sort((a, b) => tier(a) - tier(b) || heavy(a) - heavy(b) || position(a.provider) - position(b.provider)
-    || (b.height || 0) - (a.height || 0) || audioScore(a) - audioScore(b));
+    || (b.height || 0) - (a.height || 0) || audioScore(a, indian) - audioScore(b, indian));
 }
 
 // ---- All sources together ------------------------------------------------------
@@ -283,7 +320,7 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
   let answered = false;
   const finish = () => {
     const ok = results.filter(r => r.streams.length);
-    const streams = rank(dedupe(ok.flatMap(r => r.streams)), order, { client });
+    const streams = rank(dedupe(ok.flatMap(r => r.streams)), order, { client, indian: isIndian(movie) });
     const vega = ok.find(r => r.candidate);
     return {
       streams, provider: streams[0]?.provider || '', candidate: vega?.candidate || null,
@@ -318,6 +355,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, sourceOrder, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, tmdbIdFor, kindOf, labelOf, SOURCES, DEFAULT_ORDER, _tmdbCache: tmdbCache, _doomModules: doomModules,
 };
