@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const metadata=require('./mediaMetadata');
 const health=require('./playbackHealth');
+const mkvJump=require('./mkvJump');
 const threads=Math.min(8,Math.max(1,Number(process.env.FFMPEG_THREADS)||Math.min(4,require('node:os').availableParallelism())));
 let active = 0;
 const limit = Math.min(8, Math.max(1, Number(process.env.MAX_REMUX_STREAMS) || 2));
@@ -27,9 +28,10 @@ function remuxMedia(req, res, ticket, signMedia) {
   const input = 'http://127.0.0.1:' + req.socket.localPort + signMedia(ticket.url, ticket.headers, 'original', ticket.expires);
   const options = { shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] };
   active++;
-  let released = false, child, probe, gotData = false, probeTimeout, conversionId;
+  let released = false, child, probe, gotData = false, probeTimeout, conversionId, jump = null;
+  const lookup = new AbortController();
   const release = () => { if (!released) { released = true; active--; if(conversionId)health.conversionEnd(conversionId); } };
-  const stop = () => { probe?.kill(); child?.kill(); release(); clearTimeout(startup); clearTimeout(lifetime); clearTimeout(probeTimeout); };
+  const stop = () => { lookup.abort(); jump?.stream.destroy(); probe?.kill(); child?.kill(); release(); clearTimeout(startup); clearTimeout(lifetime); clearTimeout(probeTimeout); };
   const fail = (status, error) => {
     stop();
     if (!res.headersSent && !res.destroyed) res.status(status).json({ error });
@@ -39,10 +41,17 @@ function remuxMedia(req, res, ticket, signMedia) {
   const lifetime = setTimeout(() => fail(504, 'Playback session expired'), 4 * 3600000);
   lifetime.unref();
   res.on('close', stop);
-  function convert(transcodeVideo) {
+  async function convert(transcodeVideo) {
     if (res.destroyed || released) return;
+    // A deep jump in an MKV without an index: start reading near the wanted
+    // point instead of letting ffmpeg download everything before it.
+    if (start >= 120) jump = await mkvJump.openAt(input, start, { signal: lookup.signal }).catch(() => null);
+    if (res.destroyed || released) { jump?.stream.destroy(); return; }
     conversionId=health.conversionStart(ticket.url,transcodeVideo?'transcode':'copy');
-    child = spawn(process.env.FFMPEG_PATH || 'ffmpeg', ffmpegArgs(input, transcodeVideo, start, audio, height), options);
+    child = jump
+      ? spawn(process.env.FFMPEG_PATH || 'ffmpeg', ffmpegArgs('pipe:0', transcodeVideo, Math.max(0, start - jump.start), audio, height), { ...options, stdio: ['pipe', 'pipe', 'pipe'] })
+      : spawn(process.env.FFMPEG_PATH || 'ffmpeg', ffmpegArgs(input, transcodeVideo, start, audio, height), options);
+    if (jump) { child.stdin.on('error', () => {}); jump.stream.on('error', () => child.stdin.destroy()); jump.stream.pipe(child.stdin); }
     child.on('error', () => fail(503, 'Server media conversion is unavailable'));
     child.on('close', code => {
       if (code && !res.destroyed) fail(502, 'This video source could not be converted');
