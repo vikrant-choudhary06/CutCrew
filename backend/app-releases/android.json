@@ -1,6 +1,7 @@
 {
-  "version": "1.0.2",
-  "versionCode": 3,
-  "apkUrl": "https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.2/CutCrew-android-1.0.2.apk",
-  "notes": "Seeking works in every video, the home screen opens faster, and the app updates itself."
+  "version": "1.0.3",
+  "versionCode": 4,
+  "apkUrl": "https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk",
+  "notes": "A new player: swipe for brightness and volume, double-tap to skip, picture in picture, and jumping ahead that works in every video.",
+  "sizeMb": 73
 }
