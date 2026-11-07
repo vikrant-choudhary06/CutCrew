@@ -169,7 +169,7 @@ test('on phones, after the language, 1080p and AAC come before 4K and E-AC3 / DT
   const aac = { link: 'aac', type: 'mkv', height: 720, audioTracks: [t('hi', 'aac'), t('en', 'aac', 1)] };
   const tamilOnly = { link: 'ta', type: 'mkv', height: 1080, audioTracks: [t('ta', 'aac')] };
   const order = (list, lang) => audio.preferLanguage(list, lang, { client: 'app' }).map(s => s.link).join(' ');
-  assert.equal(order([uhd, eac3, dts, aac], 'en'), 'aac eac3 uhd dts');
+  assert.equal(order([uhd, eac3, dts, aac], 'en'), 'aac eac3 dts uhd');
   // For Hindi the DTS file plays its AAC Hindi track, so it is fine.
   assert.equal(order([uhd, eac3, dts, aac], 'hi'), 'dts aac eac3 uhd');
   // The language still comes first: a 4K file with it beats a phone-friendly one without.
@@ -196,4 +196,16 @@ test('a file that cannot seek goes after the ones that can, whatever its languag
   const order = (list, client) => audio.preferLanguage(list, 'hi', { client }).map(s => s.link).join(' ');
   assert.equal(order([stuck, eac3, english], 'app'), 'eac3 en stuck');
   assert.equal(order([stuck, english], 'web'), 'en stuck');
+});
+
+test('apps: 1080p before 4K, unless the 1080p file is known to lack the language', () => {
+  const t = (language, codec) => [{ index: 0, language, codec, label: language, title: '', default: true }];
+  const uhdHindi = { link: 'uhd-hi', type: 'mkv', height: 2160, audioTracks: t('hi', 'eac3') };
+  const uhdUnknown = { link: 'uhd-?', type: 'mkv', height: 2160 };
+  const hdUnknown = { link: 'hd-?', type: 'mkv', height: 1080 };
+  const hdHindi = { link: 'hd-hi', type: 'mkv', height: 1080, audioTracks: t('hi', 'eac3') };
+  const hdTamil = { link: 'hd-ta', type: 'mkv', height: 1080, audioTracks: t('ta', 'aac') };
+  const hdStuck = { link: 'hd-stuck', type: 'mkv', height: 1080, seekable: false, audioTracks: t('hi', 'aac') };
+  const order = list => audio.preferLanguage(list, 'hi', { client: 'app' }).map(s => s.link).join(' ');
+  assert.equal(order([uhdHindi, uhdUnknown, hdStuck, hdTamil, hdUnknown, hdHindi]), 'hd-hi hd-? uhd-hi uhd-? hd-ta hd-stuck');
 });

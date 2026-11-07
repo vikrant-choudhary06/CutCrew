@@ -87,7 +87,7 @@ router.get('/:imdb_id', async (req, res, next) => {
         const result = process.env.MULTI_SOURCE === 'false' ? await resolvePlayback(movie.toObject(), options)
           : await collectStreams(movie.toObject(), { ...options, client,
             // Apps: answer early only once something a phone can surely play (1080p or less) is found.
-            ...(client === 'app' ? { goodEnough: stream => (stream.height || 0) > 0 && stream.height <= 1080, maxWaitMs: APP_WAIT_MS } : {}),
+            ...(client === 'app' ? { goodEnough: stream => (stream.height || 0) > 0 && stream.height <= 1080 && stream.seekable !== false, maxWaitMs: APP_WAIT_MS } : {}),
             onLate: late => { if (late.streams.length) save(late).catch(error => console.warn('[Sources] late save failed', error.message)); } });
         await save(result);
         // Tracks read after the answer: save again so the next play ranks by language.

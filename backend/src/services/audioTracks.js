@@ -124,7 +124,16 @@ function preferLanguage(streams, preferred, { client = 'web' } = {}) {
   // A file whose host ignores byte ranges cannot seek: apps cannot even open an
   // MKV that way. It goes last, whatever its language or audio.
   const stuck = s => (s.seekable === false ? 1 : 0);
-  return streams.map((s, i) => ({ s, i, c: cost(s) })).sort((a, b) => (stuck(a.s) - stuck(b.s)) || (heavy(a.s) - heavy(b.s)) || (boost(b.s) - boost(a.s)) || a.c - b.c || a.i - b.i).map(x => x.s);
+  // Phones often cannot decode 4K (HDR HEVC 10-bit), so for the app: surely the
+  // language and 1080p or less, then unknown language and 1080p or less, then
+  // the same two in 4K, then files known to lack the language.
+  const tier = s => {
+    if (client !== 'app') return boost(s) ? 0 : 1;
+    const big = (s.height || 0) > 1080 ? 1 : 0;
+    const known = (s.audioTracks || []).length > 0;
+    return boost(s) ? big * 2 : !known ? 1 + big * 2 : 4 + big;
+  };
+  return streams.map((s, i) => ({ s, i, c: cost(s) })).sort((a, b) => (stuck(a.s) - stuck(b.s)) || (heavy(a.s) - heavy(b.s)) || (tier(a.s) - tier(b.s)) || a.c - b.c || a.i - b.i).map(x => x.s);
 }
 
 // How likely a phone is to fail on a stream (higher is worse): 4K video, and
