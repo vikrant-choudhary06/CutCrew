@@ -3,7 +3,7 @@
     "name": "CutCrew",
     "slug": "cutcrew",
     "scheme": "cutcrew",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "sbs.vikrant.cutcrew",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#0f1320",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -32,7 +32,12 @@
     },
     "plugins": [
       "expo-router",
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsPictureInPicture": true
+        }
+      ],
       "expo-image",
       "expo-font",
       "./plugins/withAndroidTv",
