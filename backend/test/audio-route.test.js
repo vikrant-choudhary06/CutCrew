@@ -77,3 +77,24 @@ test('a cache entry saved before audio tracks existed still plays', async () => 
   assert.equal(fresh.body.cached, true);
   assert.equal(fresh.body.streams[0].audioIndex, 2);
 });
+
+test('the app gets a cached 1080p file first even when 4K files come before it in the cache', async () => {
+  const t = (index, language, codec) => ({ index, language, label: language, codec, channels: 6, title: '', default: index === 0 });
+  const uhd = n => ({ link: `https://cdn.example/uhd${n}.mkv`, type: 'mkv', provider: 'hdhub', server: 'HdHub 4K', height: 2160, hevc: true, headers: {}, subtitles: [], audioTracks: [t(0, 'hi', 'eac3'), t(1, 'en', 'eac3')] });
+  const hd = { link: 'https://cdn.example/hd.mkv', type: 'mkv', provider: '4khdhub', server: '4kHDHub 1080p', height: 1080, headers: {}, subtitles: [], audioTracks: [t(0, 'hi', 'eac3'), t(1, 'en', 'eac3')] };
+  const series = title({ imdb_id: 'tt33546863', title: 'Off Campus', title_type: 'TV Series',
+    seasons: [{ season_number: 1, episodes: [{ episode_number: 1, provider_name: 'hdhub', stream_fetched_at: new Date().toISOString(), stream_data: [uhd(1), uhd(2), uhd(3), hd] }] }] });
+  Movie.findOne = async () => series;
+  Movie.findOneAndUpdate = async () => series;
+  collectImpl = async () => { throw new Error('the cache should answer'); };
+  // Like the real probe: only the first playable batch of three comes back.
+  const original = sourceProbe.filterPlayable;
+  sourceProbe.filterPlayable = async streams => streams.slice(0, 3);
+  try {
+    const app = await get('/api/movies/play/tt33546863?season=1&episode=1&lang=hi&client=app');
+    assert.equal(app.status, 200);
+    assert.equal(app.body.streams[0].height, 1080);
+    const web = await get('/api/movies/play/tt33546863?season=1&episode=1&lang=hi');
+    assert.equal(web.body.streams.length, 3);
+  } finally { sourceProbe.filterPlayable = original; }
+});

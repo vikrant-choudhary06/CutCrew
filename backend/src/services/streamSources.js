@@ -355,7 +355,9 @@ function rank(streams, order, { client = 'web', indian = false } = {}) {
 // finished, or after `waitMs` once at least one stream was found. Sources that
 // finish later are passed to `onLate` with the complete list, so the cache can
 // be updated for the next request.
-async function collectStreams(movie, { season, episode, excludedProviders = [], rediscover = false, client = 'web', waitMs = WAIT_MS, onLate, run = runSource, order: given } = {}) {
+// goodEnough: answer after waitMs only once a found stream passes it (until
+// maxWaitMs); without it, any stream will do.
+async function collectStreams(movie, { season, episode, excludedProviders = [], rediscover = false, client = 'web', waitMs = WAIT_MS, maxWaitMs = 0, goodEnough, onLate, run = runSource, order: given } = {}) {
   const order = (given || sourceOrder()).filter(id => !excludedProviders.includes(id));
   const title = { ...movie, season, episode, movie };
   const results = [];
@@ -386,7 +388,10 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
     result = await new Promise(resolve => {
       let timer;
       const check = () => {
-        if (results.length === order.length || (Date.now() - started >= waitMs && results.some(r => r.streams.length))) {
+        const elapsed = Date.now() - started;
+        const found = results.flatMap(r => r.streams);
+        const enough = goodEnough && elapsed < maxWaitMs ? found.some(goodEnough) : found.length > 0;
+        if (results.length === order.length || (elapsed >= waitMs && enough)) {
           clearInterval(timer); resolve(finish());
         }
       };

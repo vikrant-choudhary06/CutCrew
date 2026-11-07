@@ -9,6 +9,8 @@ const audioTracks = require('../services/audioTracks');
 const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
 const pending = new Map();
 const CACHE_MS = 3 * 60 * 60 * 1000;
+// How long an app's first answer may wait for a 1080p (or smaller) source.
+const APP_WAIT_MS = Number(process.env.APP_SOURCE_WAIT_MS) || 25000;
 
 router.get('/:imdb_id', async (req, res, next) => {
   try {
@@ -44,7 +46,8 @@ router.get('/:imdb_id', async (req, res, next) => {
     if (req.query.refresh !== '1' && !excludedProviders.includes(cachedProvider) && cached.length &&
         Date.now() - new Date(target.stream_fetched_at).getTime() < CACHE_MS) {
       res.set('Cache-Control', 'no-store');
-      const usable=await sourceProbe.filterPlayable(cached,{client});
+      // Ordered first: the probe keeps only the first playable few.
+      const usable=await sourceProbe.filterPlayable(audioTracks.preferLanguage(cached, lang, { client }),{client});
       if(usable.length)return res.json({ streams: presentStreams(ready(usable),{client}), provider: cachedProvider, cached: true, lang });
     }
     const key = [movie.imdb_id, series ? season : '', series ? episode : '', [...excludedProviders].sort().join(','), client].join(':');
@@ -83,6 +86,8 @@ router.get('/:imdb_id', async (req, res, next) => {
         const options = { season, episode, excludedProviders, rediscover:req.query.refresh==='1'||cached.length>0 };
         const result = process.env.MULTI_SOURCE === 'false' ? await resolvePlayback(movie.toObject(), options)
           : await collectStreams(movie.toObject(), { ...options, client,
+            // Apps: answer early only once something a phone can surely play (1080p or less) is found.
+            ...(client === 'app' ? { goodEnough: stream => (stream.height || 0) > 0 && stream.height <= 1080, maxWaitMs: APP_WAIT_MS } : {}),
             onLate: late => { if (late.streams.length) save(late).catch(error => console.warn('[Sources] late save failed', error.message)); } });
         await save(result);
         // Tracks read after the answer: save again so the next play ranks by language.

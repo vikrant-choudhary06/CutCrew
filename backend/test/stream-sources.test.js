@@ -270,3 +270,24 @@ test('ffprobe output becomes a length in seconds', async () => {
   assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => { throw new Error('no ffprobe'); } }), null);
   assert.equal(await sources.durationOf({ link: 'https://x/v.mp4' }, { run: async () => 'N/A' }), null);
 });
+
+test('apps wait for a 1080p-or-smaller source while only 4K was found, up to a limit', async () => {
+  const uhdFast = { source: 'uhd', streams: [{ link: 'https://u/4k.mkv', provider: 'uhd', type: 'mkv', height: 2160 }], ms: 10 };
+  const run = delay => async id => {
+    if (id === 'uhd') return uhdFast;
+    await new Promise(resolve => setTimeout(resolve, delay));
+    return { source: id, streams: [{ link: 'https://h/1080.mkv', provider: id, type: 'mkv', height: 1080 }], ms: delay };
+  };
+  const goodEnough = s => s.height > 0 && s.height <= 1080;
+  // Without the rule (website): answers with the 4K file after waitMs.
+  const web = await sources.collectStreams(movie, { order: ['uhd', 'hd'], run: run(400), waitMs: 50 });
+  assert.deepEqual(web.streams.map(s => s.height), [2160]);
+  // App: keeps waiting and gets the 1080p file too.
+  const app = await sources.collectStreams(movie, { order: ['uhd', 'hd'], run: run(400), waitMs: 50, goodEnough, maxWaitMs: 2000 });
+  assert.deepEqual(app.streams.map(s => s.height).sort(), [1080, 2160]);
+  // But not forever: after maxWaitMs it answers with what it has.
+  const started = Date.now();
+  const capped = await sources.collectStreams(movie, { order: ['uhd', 'hd'], run: run(3000), waitMs: 50, goodEnough, maxWaitMs: 300 });
+  assert.ok(Date.now() - started < 1500);
+  assert.deepEqual(capped.streams.map(s => s.height), [2160]);
+});
