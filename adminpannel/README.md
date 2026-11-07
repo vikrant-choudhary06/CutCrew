@@ -2,7 +2,13 @@
 
 Served at **https://ccadmin.vikrant.sbs**. Plain HTML, CSS and JavaScript (no build step).
 
-Sign in with the server's `ADMIN_TOKEN`. The token stays in this browser tab only.
+Sign in with an admin email and password. The owner is created on the server with:
+
+```bash
+sudo docker compose exec backend npm run admin:owner -- you@example.com
+```
+
+(it asks for the password; run it again to set a new owner password). The owner adds and removes other admins in the **Admins** tab. Passwords are saved only as scrypt hashes; a sign-in lasts 7 days (HttpOnly cookie for this site only). After 10 wrong tries an IP or email waits 15 minutes. `ADMIN_TOKEN` still works as a Bearer token for scripts.
 
 ## Sections
 - **Overview**: people online, streams, bandwidth, server load/memory/disk, app release, downloads, storage.
@@ -12,6 +18,7 @@ Sign in with the server's `ADMIN_TOKEN`. The token stays in this browser tab onl
 - **Storage**: stored (Telegram) videos — check, hide, restore, make default, retry — and the auto-archive queue.
 - **Catalogue**: rename a title, change its synopsis or genres.
 - **Logs**: the server's latest log lines.
+- **Admins**: owner only — add an admin (email + password), set a new password, remove. Everyone can change their own password here.
 
 Countries come from a database bundled with the server (`geoip-country`); no IP address is sent anywhere.
 

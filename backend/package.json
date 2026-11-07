@@ -18,7 +18,8 @@
     "telegram:poc": "node scripts/telegram-phase0.cjs",
     "video:import": "node scripts/video-import.cjs",
     "anime:check": "node scripts/check-anime.cjs",
-    "sources:check": "node scripts/check-sources.cjs"
+    "sources:check": "node scripts/check-sources.cjs",
+    "admin:owner": "node scripts/admin-owner.cjs"
   },
   "keywords": [],
   "author": "",

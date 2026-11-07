@@ -13,6 +13,9 @@ router.use('/movies/trending', require('./getTrendingMovies'));
 router.use('/series/trending', require('./getTrendingSeries'));
 router.use('/movies/search', require('./searchMovies'));
 router.use('/admin/storage', require('../middlewares/adminAuth'), require('./adminStorage')); // Telegram storage admin
+const adminAccounts = require('./adminAuthRoutes');
+router.use('/admin/auth', adminAccounts.auth); // admin panel sign-in
+router.use('/admin/admins', adminAccounts.admins); // owner: add and remove admins
 router.use('/admin/panel', require('../middlewares/adminAuth'), require('./adminPanel')); // admin panel (adminpannel/)
 router.use('/admin', require('./admin'));
 router.use('/logs', require('./logs'));

@@ -1,19 +1,17 @@
-// CutCrew admin panel. Talks to /api/admin/* with the admin token; every
-// value from the server is put on the page as text, never as HTML.
+// CutCrew admin panel. Signs in with an admin email and password (an HttpOnly
+// cookie keeps the session); every value from the server is put on the page
+// as text, never as HTML.
 (() => {
   'use strict';
   const $ = selector => document.querySelector(selector);
-  const TOKEN_KEY = 'cutcrew-admin-token';
-  let token = '';
-  try { token = sessionStorage.getItem(TOKEN_KEY) || ''; } catch { /* storage blocked */ }
-  let tab = 'overview', timer = null, lastOk = 0;
+  let me = null, tab = 'overview', timer = null, lastOk = 0;
 
   // ---------- helpers ----------
   async function api(path, { method = 'GET', body } = {}) {
-    const headers = { Authorization: 'Bearer ' + token };
+    const headers = {};
     if (method !== 'GET') { headers['Content-Type'] = 'application/json'; headers['X-CutCrew-Admin'] = '1'; }
-    const response = await fetch('/api' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
-    if (response.status === 401) { signOut('That token was not accepted.'); throw new Error('Signed out'); }
+    const response = await fetch('/api' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', credentials: 'same-origin' });
+    if (response.status === 401 && !path.startsWith('/admin/auth/')) { showLogin('You were signed out. Sign in again.'); throw new Error('Signed out'); }
     let data = null;
     try { data = await response.json(); } catch { /* empty body */ }
     if (!response.ok) throw new Error((data && (data.error || data.message)) || 'Request failed (' + response.status + ')');
@@ -48,28 +46,39 @@
   const facts = (target, pairs) => $(target).replaceChildren(...pairs.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)]));
 
   // ---------- sign in ----------
-  function signOut(message) {
-    token = '';
-    try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+  const MESSAGES = { WRONG_EMAIL_OR_PASSWORD: 'Wrong email or password.', TOO_MANY_TRIES: 'Too many tries. Wait 15 minutes and try again.',
+    PASSWORD_TOO_SHORT: 'The password needs at least 10 characters.', EMAIL_TAKEN: 'That email is already an admin.', INVALID_EMAIL: 'Enter a valid email.',
+    CURRENT_PASSWORD_WRONG: 'Your current password is not right.', CANNOT_REMOVE_YOURSELF: 'You cannot remove yourself.', OWNER_ONLY: 'Only the owner can do this.' };
+  const nice = error => MESSAGES[error.message] || error.message;
+  function showLogin(message) {
+    me = null;
     clearTimeout(timer);
     $('#shell').hidden = true; $('#login').hidden = false;
     $('#login-error').textContent = message || '';
-    $('#token').focus();
+    $('#email').focus();
+  }
+  function signedIn(admin) {
+    me = admin;
+    $('#me').replaceChildren(admin.email, ' ', el('small', {}, admin.role === 'owner' ? '(owner)' : '(admin)'));
+    $('#owner-tools').hidden = admin.role !== 'owner';
+    start();
   }
   $('#login-form').addEventListener('submit', async event => {
     event.preventDefault();
-    token = $('#token').value.trim();
+    $('#login-error').textContent = '';
     try {
-      await api('/admin/panel/overview');
-      try { sessionStorage.setItem(TOKEN_KEY, token); } catch { /* this tab only */ }
-      $('#token').value = '';
-      start();
-    } catch (error) { if (token) $('#login-error').textContent = error.message; }
+      const { admin } = await api('/admin/auth/login', { method: 'POST', body: { email: $('#email').value, password: $('#password').value } });
+      $('#password').value = '';
+      signedIn(admin);
+    } catch (error) { $('#login-error').textContent = nice(error); }
   });
-  $('#logout').addEventListener('click', () => signOut(''));
+  $('#logout').addEventListener('click', async () => {
+    try { await api('/admin/auth/logout', { method: 'POST' }); } catch { /* signed out anyway */ }
+    showLogin('');
+  });
 
   // ---------- tabs ----------
-  const loaders = { overview, live, downloads, providers, storage, catalogue: () => {}, logs };
+  const loaders = { overview, live, downloads, providers, storage, catalogue: () => {}, logs, account };
   const refreshMs = { overview: 5000, live: 3000, downloads: 30000, providers: 10000, storage: 15000, logs: 3000 };
   function show(name) {
     tab = name;
@@ -81,12 +90,12 @@
   for (const button of document.querySelectorAll('#nav button')) button.addEventListener('click', () => show(button.dataset.tab));
   async function tick() {
     clearTimeout(timer);
-    try { await loaders[tab](); } catch (error) { if (token) say(error.message); }
+    try { await loaders[tab](); } catch (error) { if (me) say(nice(error)); }
     $('#pulse').classList.toggle('stale', Date.now() - lastOk > 20000);
     $('#updated').textContent = lastOk ? 'Updated ' + new Date(lastOk).toLocaleTimeString() : '—';
-    if (token && refreshMs[tab] && !document.hidden) timer = setTimeout(tick, refreshMs[tab]);
+    if (me && refreshMs[tab] && !document.hidden) timer = setTimeout(tick, refreshMs[tab]);
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) tick(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && me) tick(); });
   function start() { $('#login').hidden = true; $('#shell').hidden = false; show(tab); }
 
   // ---------- overview ----------
@@ -236,5 +245,44 @@
     if (atBottom) box.scrollTop = box.scrollHeight;
   }
 
-  if (token) start(); else signOut('');
+  // ---------- admins ----------
+  async function account() {
+    if (me?.role !== 'owner') return;
+    const body = await api('/admin/admins');
+    table('#admins', ['Email', 'Role', 'Added', 'Last sign-in', ''], body.data.map(a => [
+      el('b', {}, a.email), el('span', { class: 'tag ' + (a.role === 'owner' ? 'app' : '') }, a.role), td(ago(a.createdAt), 'num'), td(a.lastLoginAt ? ago(a.lastLoginAt) : 'never', 'num'),
+      a.role === 'owner' ? '' : el('div', { class: 'actions' },
+        el('button', { class: 'ghost', onclick: async () => {
+          const password = prompt('New password for ' + a.email + ' (at least 10 characters):');
+          if (!password) return;
+          try { await api('/admin/admins/' + a.id + '/password', { method: 'POST', body: { password } }); say('Password changed for ' + a.email + '. They are signed out everywhere.'); }
+          catch (error) { say(nice(error)); }
+        } }, 'New password'),
+        el('button', { class: 'ghost danger', onclick: async () => {
+          if (!confirm('Remove ' + a.email + '? They can no longer sign in.')) return;
+          try { await api('/admin/admins/' + a.id, { method: 'DELETE' }); say(a.email + ' was removed.'); await account(); } catch (error) { say(nice(error)); }
+        } }, 'Remove'))]));
+  }
+  $('#add-admin').addEventListener('submit', async event => {
+    event.preventDefault();
+    try {
+      const { admin } = await api('/admin/admins', { method: 'POST', body: { email: $('#new-email').value, password: $('#new-password').value } });
+      $('#new-email').value = ''; $('#new-password').value = '';
+      say(admin.email + ' can now sign in.');
+      await account();
+    } catch (error) { say(nice(error)); }
+  });
+  $('#my-password').addEventListener('submit', async event => {
+    event.preventDefault();
+    try {
+      await api('/admin/auth/password', { method: 'POST', body: { current: $('#cur-password').value, password: $('#next-password').value } });
+      $('#cur-password').value = ''; $('#next-password').value = '';
+      say('Password changed. Other devices are signed out.');
+    } catch (error) { say(nice(error)); }
+  });
+
+  // Already signed in (the cookie is still valid)?
+  fetch('/api/admin/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+    .then(response => (response.ok ? response.json() : null)).then(body => (body?.admin ? signedIn(body.admin) : showLogin('')))
+    .catch(() => showLogin(''));
 })();
