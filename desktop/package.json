@@ -1,7 +1,7 @@
 {
   "name": "cutcrew-desktop",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "CutCrew for Windows: the CutCrew website in its own app window",
   "scripts": {
     "icons": "tauri icon app-icon.svg",
