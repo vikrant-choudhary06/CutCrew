@@ -31,3 +31,12 @@ test('apps get an error, not the whole file, when a host cannot seek', async () 
     assert.equal(web.status, 200);
   } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); }
 });
+
+test('apps get MKV files without an index (or on hosts without ranges) converted, others as they are', () => {
+  const base = { link: 'https://public.example/a.mkv', type: 'mkv', headers: {}, subtitles: [] };
+  const [plain, noIndex, stuck] = media.presentStreams([base, { ...base, link: 'https://public.example/b.mkv', noIndex: true }, { ...base, link: 'https://public.example/c.mkv', seekable: false }], { client: 'app' });
+  assert.deepEqual([plain.type, plain.remuxed], ['mkv', false]);
+  assert.deepEqual([noIndex.type, noIndex.remuxed], ['mp4', true]);
+  assert.deepEqual([stuck.type, stuck.remuxed], ['mp4', true]);
+  assert.equal(media.verifyToken(new URL(noIndex.link, 'http://x').searchParams.get('token')).format, 'mkv');
+});

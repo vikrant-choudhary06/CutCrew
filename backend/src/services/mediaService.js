@@ -109,7 +109,11 @@ function presentStreams(streams, { client = 'web' } = {}) {
         try { return [{ ...track, uri: signMedia(track.uri, stream.headers, /subrip|srt/i.test(track.type || track.uri) ? 'srt' : 'vtt') }]; }
         catch { return []; }
       });
-      if (app) return [{ ...stream, remuxed: false, headers: undefined, link: signMedia(stream.link, stream.headers, stream.type === 'mkv' ? 'raw' : stream.type), subtitles }];
+      // An MKV the app's player cannot jump in (no index, or a host that ignores
+      // ranges) is converted like on the website; the app seeks by asking again
+      // with start=. Other MKV files go to the app as they are.
+      const convert = stream.type === 'mkv' && (stream.noIndex || stream.seekable === false);
+      if (app && !convert) return [{ ...stream, remuxed: false, headers: undefined, link: signMedia(stream.link, stream.headers, stream.type === 'mkv' ? 'raw' : stream.type), subtitles }];
       return [{ ...stream, type: stream.type === 'mkv' ? 'mp4' : stream.type, remuxed: stream.type === 'mkv',
         headers: undefined, link: signMedia(stream.link, stream.headers, stream.type), subtitles }];
     } catch { return []; }
