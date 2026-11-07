@@ -203,6 +203,14 @@ async function relay(req, res) {
       // Backpressure while paused or converting is normal. Keep the connection deadline
       // for opening the source, but do not apply it to the lifetime of a media response.
       response.request?.setTimeout?.(0);
+      // The host ignored the range and sent the file from the start. An app
+      // asked for a later part (MKV keeps its index at the end): fail now, so
+      // the player moves to another source instead of loading gigabytes.
+      if (start>0 && response.status===200 && ticket.format==='raw') {
+        response.data.destroy();
+        console.warn('[Media relay]', new URL(ticket.url).hostname, 'cannot seek');
+        return res.status(502).set('Cache-Control','private, no-store').json({ error: 'This source cannot seek' });
+      }
       if (start!==null && response.status===206) {
         if(type)res.set('Content-Type',type);
         await streamRanges(response,start,open,res,controller.signal,{sourceId:require('./playbackHealth').sourceId(ticket.url)});return;

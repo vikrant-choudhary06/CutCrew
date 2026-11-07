@@ -187,3 +187,13 @@ test('a 4K cinema crop (3840x1608) is 2160p, not 1080p', async () => {
   await sources.inspect(streams, { mediaOf: async s => ({ video: { codec: 'hevc', tenBit: true, width: sizes[s.link][0], height: sizes[s.link][1] }, tracks: [] }) });
   assert.deepEqual(streams.map(s => s.height), [2160, 1080, 2160]);
 });
+
+test('a file that cannot seek goes after the ones that can, whatever its language or audio', () => {
+  const t = (language, codec) => [{ index: 0, language, codec, label: language, title: '', default: true }];
+  const stuck = { link: 'stuck', type: 'mkv', height: 1080, seekable: false, audioTracks: t('hi', 'aac') };
+  const eac3 = { link: 'eac3', type: 'mkv', height: 1080, audioTracks: t('hi', 'eac3') };
+  const english = { link: 'en', type: 'mkv', height: 1080, audioTracks: t('en', 'aac') };
+  const order = (list, client) => audio.preferLanguage(list, 'hi', { client }).map(s => s.link).join(' ');
+  assert.equal(order([stuck, eac3, english], 'app'), 'eac3 en stuck');
+  assert.equal(order([stuck, english], 'web'), 'en stuck');
+});

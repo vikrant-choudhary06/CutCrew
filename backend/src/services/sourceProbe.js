@@ -66,6 +66,6 @@ async function filterPlayable(streams,{signal,check=checked,timeoutMs,client='we
   // Web: MKV after MP4/HLS, and HEVC / 10-bit / >720p MKV (re-encoded) after the rest.
   const mkv=item=>item.result.format==='mkv'||item.stream.type==='mkv';
   const rank=item=>(client!=='app'&&mkv(item)?20+(item.stream.hevc||(item.stream.height||0)>720?10:0):0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
-  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{}),...(item.result.audioTracks?.length&&!item.stream.audioTracks?.length?{audioTracks:item.result.audioTracks}:{})}));
+  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{}),...(item.result.audioTracks?.length&&!item.stream.audioTracks?.length?{audioTracks:item.result.audioTracks}:{}),...(item.result.seekable===false?{seekable:false}:{})}));
 }
 module.exports={probe,signature,filterPlayable};
