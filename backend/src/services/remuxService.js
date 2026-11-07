@@ -45,7 +45,7 @@ function remuxMedia(req, res, ticket, signMedia) {
     if (res.destroyed || released) return;
     // A deep jump in an MKV without an index: start reading near the wanted
     // point instead of letting ffmpeg download everything before it.
-    if (start >= 120) jump = await mkvJump.openAt(input, start, { signal: lookup.signal }).catch(() => null);
+    if (start >= 120) jump = await mkvJump.openAt(input, start, { signal: lookup.signal, key: ticket.url }).catch(() => null);
     if (res.destroyed || released) { jump?.stream.destroy(); return; }
     conversionId=health.conversionStart(ticket.url,transcodeVideo?'transcode':'copy');
     child = jump
@@ -61,6 +61,8 @@ function remuxMedia(req, res, ticket, signMedia) {
     child.stderr.on('data',chunk=>{progress+=chunk.toString();const lines=progress.split('\n');progress=lines.pop().slice(-4096);for(const line of lines){const [key,value]=line.trim().split('=');const number=parseFloat(value);if(!Number.isFinite(number))continue;if(key==='speed')health.conversionUpdate(conversionId,{speed:number});if(key==='out_time_us')health.conversionUpdate(conversionId,{mediaSeconds:number/1000000});if(key==='total_size')health.conversionUpdate(conversionId,{bytes:number})}});
     child.stdout.once('data', () => { gotData = true; clearTimeout(startup); });
     res.type('video/mp4').set('Cache-Control', 'private, no-store').set('Accept-Ranges', 'none');
+    // Send the headers now: players give up on a connection that stays silent.
+    res.flushHeaders();
     child.stdout.pipe(res, { end: false });
   }
   const cached=metadata.get(ticket);

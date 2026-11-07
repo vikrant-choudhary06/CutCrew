@@ -54,3 +54,15 @@ test('leaves files with an index to ffmpeg', async () => {
   const cues = Buffer.concat([header, Buffer.from([0x1c, 0x53, 0xbb, 0x6b]), ...clusters]);
   assert.equal(await openAt('http://x', 2000, { fetchImpl: fakeFetch(cues) }), null);
 });
+
+test('a repeated jump starts straight from where the last one landed', async () => {
+  let calls = 0;
+  const counting = (inner => async (...args) => { calls++; return inner(...args); })(fakeFetch(file));
+  const firstJump = await openAt('http://x', 2500, { fetchImpl: counting, key: 'film' });
+  firstJump.stream.destroy();
+  calls = 0;
+  const again = await openAt('http://x', 2500, { fetchImpl: counting, key: 'film' });
+  again.stream.destroy();
+  assert.equal(again.start, firstJump.start);
+  assert.equal(calls, 2);
+});

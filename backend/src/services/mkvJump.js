@@ -11,6 +11,12 @@ const SCALE = Buffer.from([0x2a, 0xd7, 0xb1]);
 const DURATION = Buffer.from([0x44, 0x89]);
 const HEAD_BYTES = 1048576;
 const LOOK_BYTES = 8 * 1048576;
+// Where recent jumps landed, so a player that retries starts at once.
+const landed = new Map();
+function remember(key, value) {
+  landed.delete(key); landed.set(key, value);
+  if (landed.size > 200) landed.delete(landed.keys().next().value);
+}
 
 // An element size: the first byte's leading zeros give its length.
 function vint(buf, pos) {
@@ -84,7 +90,8 @@ async function readFrom(url, offset, fetchImpl, signal) {
 // A stream of the header plus the file from a cluster at or a little before
 // `target` seconds, with that cluster's time; null when this file needs no
 // help (it has an index) or the guess does not work out.
-async function openAt(url, target, { fetchImpl = fetch, lead = 40, signal } = {}) {
+async function openAt(url, target, { fetchImpl = fetch, lead = 8, close = 120, signal, key } = {}) {
+  const memo = key && landed.get(key + ':' + target);
   const first = await readFrom(url, 0, fetchImpl, signal);
   if (!first) return null;
   let head = Buffer.alloc(0);
@@ -95,11 +102,18 @@ async function openAt(url, target, { fetchImpl = fetch, lead = 40, signal } = {}
   }
   first.reader.cancel().catch(() => {});
   const info = readHeader(head);
+  if (memo && info) info.memo = memo;
   if (!info || info.indexed || !first.total || !(info.seconds > target) || info.seconds > 172800) return null;
-  const body = first.total - info.clusterAt;
-  let want = Math.max(0, target - lead);
-  for (let tries = 0; tries < 4; tries++) {
-    const offset = info.clusterAt + Math.floor(body * want / info.seconds);
+  // Guess between the nearest known points before and after the wanted time,
+  // narrowing them with each cluster found, until one lands just before it.
+  let lo = { at: info.clusterAt, t: 0 }, hi = { at: first.total, t: info.seconds };
+  const want = Math.max(0, target - lead);
+  let after = -1, settle = false;
+  if (info.memo) { lo = info.memo; settle = true; }
+  for (let tries = 0; tries < 7; tries++) {
+    // Last resort: the cluster already found before the wanted time.
+    if (tries === 6 || settle) { if (!lo.t) return null; settle = true; }
+    const offset = settle ? lo.at : Math.min(hi.at - 1, Math.max(lo.at, lo.at + Math.floor((hi.at - lo.at) * (want - lo.t) / (hi.t - lo.t))));
     const part = await readFrom(url, offset, fetchImpl, signal);
     if (!part) return null;
     let buf = Buffer.alloc(0), found = null;
@@ -112,12 +126,20 @@ async function openAt(url, target, { fetchImpl = fetch, lead = 40, signal } = {}
     }
     if (!found || found.more) { part.reader.cancel().catch(() => {}); return null; }
     if (found.seconds > target) {
-      // Landed past the wanted point: step back by the overshoot and try again.
       part.reader.cancel().catch(() => {});
-      want -= found.seconds - target + lead;
-      if (want <= 0) return null;
+      if (settle || offset <= lo.at) return null;
+      // The same cluster again: nothing lies between the known one and the target.
+      if (offset + found.at === after) settle = true;
+      after = offset + found.at;
+      hi = { at: offset, t: found.seconds };
       continue;
     }
+    if (!settle && target - found.seconds > close && offset + found.at > lo.at) {
+      part.reader.cancel().catch(() => {});
+      lo = { at: offset + found.at, t: found.seconds };
+      continue;
+    }
+    if (key) remember(key + ':' + target, { at: offset + found.at, t: found.seconds });
     const reader = part.reader, rest = buf.subarray(found.at);
     async function* chunks() {
       try {
