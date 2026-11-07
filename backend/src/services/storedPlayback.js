@@ -4,6 +4,7 @@
 // database slow or failing) returns no sources so the providers take over.
 const { videoStorageConfig } = require('../config/videoStorage');
 const tickets = require('./storedMediaTicket');
+const { lengthFits } = require('./lengthCheck');
 
 const STORAGE_PROVIDER = 'cutcrew-storage';
 
@@ -19,7 +20,7 @@ async function withTimeout(promise, ms) {
   finally { clearTimeout(timer); }
 }
 
-async function storedSources({ imdbId, season = null, episode = null, quality } = {}, {
+async function storedSources({ imdbId, season = null, episode = null, quality, runtimeMinutes = null } = {}, {
   config = videoStorageConfig(),
   repo = require('./videoStorageRepository'),
   timeoutMs = 4000,
@@ -34,7 +35,14 @@ async function storedSources({ imdbId, season = null, episode = null, quality } 
     log({ event: 'stored-lookup-failed', code: error.code || error.message });
     return [];
   }
-  return versions.map(asset => ({
+  // A stored file far from the title's length is something else with the same
+  // name: leave it out, so the providers' sources play instead.
+  const fitting = versions.filter(asset => {
+    const fits = lengthFits(asset.durationSeconds, { runtimeMinutes, episode: season != null });
+    if (!fits) log({ event: 'stored-length-mismatch', assetId: asset.id, seconds: Math.round(asset.durationSeconds || 0), runtimeMinutes });
+    return fits;
+  });
+  return fitting.map(asset => ({
     link: `/api/stored-media/${tickets.sign(asset.id, { ttlMs: config.ticketTtlMs })}`,
     type: 'mp4',
     server: 'CutCrew storage',

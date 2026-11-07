@@ -15,6 +15,7 @@ const { spawn } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const archiveRepo = require('./autoArchiveRepository');
 const prep = require('./videoPrepare');
+const { lengthFits, runtimeOf } = require('./lengthCheck');
 
 class ArchiveError extends Error {
   constructor(code, { retryable = false } = {}) { super(code); this.code = code; this.retryable = retryable; }
@@ -217,6 +218,11 @@ function proxyInput(candidate, port) {
 async function chooseSource(req, ctx) {
   const { settings: s, deps, signal } = ctx;
   const tried = new Set(), problems = new Set();
+  // The title's listed length: a file far shorter or longer is something else
+  // with the same name (a song, a trailer, another film).
+  let runtimeMinutes = null;
+  try { runtimeMinutes = deps.runtimeOf ? await deps.runtimeOf(req) : null; } catch { /* unknown length */ }
+  const length = { episode: req.season != null, runtimeMinutes };
   let probes = 0;
   for await (const batch of deps.sourcesFor(req, s)) {
     for (const candidate of batch) {
@@ -229,6 +235,7 @@ async function chooseSource(req, ctx) {
       catch (error) { if (signal?.aborted) throw error; problems.add('SOURCE_UNREADABLE'); continue; }
       try { prep.planPreparation(info); }
       catch (error) { problems.add(error.code || 'VIDEO_NOT_BROWSER_COMPATIBLE'); continue; }
+      if (!lengthFits(info.durationSeconds, length)) { problems.add('LENGTH_MISMATCH'); continue; }
       const video = info.video[0];
       if (labelRank(qualityLabel(video.width, video.height)) > s.maxHeight) { problems.add('ABOVE_MAX_QUALITY'); continue; }
       const bytes = estimateBytes(info);
@@ -318,6 +325,10 @@ async function processRequest(req, ctx) {
     }
 
     const picked = await chooseSource(req, ctx);
+    // Which provider the file comes from, so a wrong file can be traced.
+    ctx.log({ event: 'auto-archive-source', imdbId: req.imdbId, season: req.season, episode: req.episode,
+      provider: picked.candidate.fromViewer ? 'viewer' : String(picked.candidate.provider || 'unknown').slice(0, 40),
+      seconds: Math.round(picked.info.durationSeconds || 0) });
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
     // Download + prepared copy + parts can reach ~3x the film; keep 1 GB spare.
     if (await deps.freeSpace(dir) < picked.bytes * 3.2 + 1024 ** 3) throw new ArchiveError('INSUFFICIENT_DISK_SPACE', { retryable: true });
@@ -402,6 +413,12 @@ const defaultDeps = {
   download,
   freeSpace,
   probeFile: (file, options) => prep.probe(file, options),
+  runtimeOf: async req => {
+    const { ensureMovie } = require('./movieService');
+    const { episodeFor } = require('./providerService');
+    const movie = await ensureMovie(req.imdbId);
+    return runtimeOf(movie, req.season != null ? episodeFor(movie, req.season, req.episode) : null);
+  },
   titleInfo: async imdbId => {
     const { ensureMovie } = require('./movieService');
     const movie = await ensureMovie(imdbId);

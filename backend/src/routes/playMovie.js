@@ -7,6 +7,7 @@ const { presentStreams } = require('../services/mediaService');
 const sourceProbe = require('../services/sourceProbe');
 const audioTracks = require('../services/audioTracks');
 const { storedSources, STORAGE_PROVIDER } = require('../services/storedPlayback');
+const { runtimeOf } = require('../services/lengthCheck');
 const pending = new Map();
 const CACHE_MS = 3 * 60 * 60 * 1000;
 // How long an app's first answer may wait for a 1080p (or smaller) source.
@@ -32,7 +33,8 @@ router.get('/:imdb_id', async (req, res, next) => {
     // The player excludes it after a failure, which falls through to providers.
     if (!excludedProviders.includes(STORAGE_PROVIDER)) {
       const stored = await storedSources({ imdbId: movie.imdb_id, season: series ? season : null, episode: series ? episode : null,
-        quality: typeof req.query.quality === 'string' ? req.query.quality : undefined });
+        quality: typeof req.query.quality === 'string' ? req.query.quality : undefined,
+        runtimeMinutes: runtimeOf(movie, series ? episodeFor(movie, season, episode) : null) }, { log: event => console.warn(JSON.stringify(event)) });
       if (stored.length) {
         res.set('Cache-Control', 'no-store');
         return res.json({ streams: stored, provider: STORAGE_PROVIDER, cached: false, stored: true });

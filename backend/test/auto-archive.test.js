@@ -46,7 +46,7 @@ const settings = (extra = {}) => ({
   storage: { importMaxAttempts: 3, jobLeaseMs: 60000, fetchConcurrency: 2, channelId: CHAT, partSize: 256 * 1024, uploadConcurrency: 1 },
   ...extra,
 });
-const info = (extra = {}) => ({ formatName: 'mov,mp4', durationSeconds: 100, size: 50e6, bitRate: 0, subtitles: 0,
+const info = (extra = {}) => ({ formatName: 'mov,mp4', durationSeconds: 7200, size: 50e6, bitRate: 0, subtitles: 0,
   video: [{ codec: 'h264', pixelFormat: 'yuv420p', width: 1920, height: 1080 }], audio: [{ codec: 'aac', language: 'hi' }], ...extra });
 
 // Fake tools: nothing touches the network or Telegram unless a test says so.
@@ -222,7 +222,7 @@ test('a better source is used when the viewer\'s one is 4K', async () => {
 
 test('a cut-short download is retried later, not stored', async () => {
   const req = await claimOne({ imdbId: nextId() });
-  const deps = fakeDeps({ probeFile: async () => info({ durationSeconds: 40 }) });
+  const deps = fakeDeps({ probeFile: async () => info({ durationSeconds: 3000 }) });
   assert.equal(await auto.processRequest(req, ctxFor(deps)), 'requeued');
   const row = await rowOf(req.id);
   assert.equal(row.status, 'queued');
@@ -296,6 +296,7 @@ test('end to end: a watched source is downloaded, checked, uploaded and publishe
   const req = await claimOne({ imdbId: nextId() });
   const memory = createMemoryAdapter({ chatId: CHAT });
   const deps = fakeDeps({
+    runtimeOf: async () => 0.1, // the test film is 6 seconds long
     async *sourcesFor() { yield [{ link: 'local', type: 'mp4', fromViewer: true }]; },
     proxyInput: () => fixture, // a local file stands in for the media proxy URL
     probeSource: auto.probeSource,
@@ -315,4 +316,9 @@ test('end to end: a watched source is downloaded, checked, uploaded and publishe
   assert.equal((await repo.findReadyVersions({ imdbId: req.imdbId }))[0].id, asset.id, 'playback now finds the stored copy');
   // The next viewer of this title triggers nothing new.
   assert.deepEqual(await archiveRepo.request({ imdbId: req.imdbId }), { queued: false, reason: 'ALREADY_STORED' });
+});
+
+test('a source far from the title length (a song with the same name) is not stored', async () => {
+  const deps = fakeDeps({ runtimeOf: async () => 192, probeSource: async () => info({ durationSeconds: 211 }) });
+  await assert.rejects(auto.chooseSource({ imdbId: 'tt27530512', season: null, episode: null }, ctxFor(deps)), /NO_PLAYABLE_SOURCE|NO_SOURCE_FOUND|LENGTH/);
 });
