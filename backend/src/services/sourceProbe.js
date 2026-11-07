@@ -37,7 +37,10 @@ async function probe(stream, {signal,open=openMedia,depth=0,timeoutMs=4500} = {}
       const segment=await probe({...stream,link:target.href,headers},{signal:abort,open,depth:depth+1,timeoutMs});
       return {...segment,format:'hls',seekable:false,...(audioTracks.length?{audioTracks}:{})};
     }
-    return {ok:!!format,format:format==='matroska'?'mkv':format,reason:format||'invalid-media',seekable:response.status===206&&/^bytes 0-\d+\/\d+$/.test(response.headers['content-range']||'')};
+    // MKV: the SeekHead near the start lists the Cues (the index players need to
+    // jump); without it an app player can only play from the beginning.
+    const index=format==='matroska'?Buffer.concat(chunks).includes(Buffer.from([0x1c,0x53,0xbb,0x6b])):undefined;
+    return {...(index===false?{index:false}:{}),ok:!!format,format:format==='matroska'?'mkv':format,reason:format||'invalid-media',seekable:response.status===206&&/^bytes 0-\d+\/\d+$/.test(response.headers['content-range']||'')};
   } catch(error) {
     return {ok:false,reason:abort.aborted?'probe-timeout':error.response?.status?'http-'+error.response.status:'source-unavailable'};
   } finally { response?.data.destroy(); controller.abort(); }
@@ -66,6 +69,6 @@ async function filterPlayable(streams,{signal,check=checked,timeoutMs,client='we
   // Web: MKV after MP4/HLS, and HEVC / 10-bit / >720p MKV (re-encoded) after the rest.
   const mkv=item=>item.result.format==='mkv'||item.stream.type==='mkv';
   const rank=item=>(client!=='app'&&mkv(item)?20+(item.stream.hevc||(item.stream.height||0)>720?10:0):0)+health.penalty(item.stream.link)+(item.result.seekable?0:8);
-  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{}),...(item.result.audioTracks?.length&&!item.stream.audioTracks?.length?{audioTracks:item.result.audioTracks}:{}),...(item.result.seekable===false?{seekable:false}:{})}));
+  return valid.sort((a,b)=>rank(a)-rank(b)).map(item=>({...item.stream,...(['mp4','mkv','hls'].includes(item.result.format)?{type:item.result.format}:{}),...(item.result.audioTracks?.length&&!item.stream.audioTracks?.length?{audioTracks:item.result.audioTracks}:{}),...(item.result.seekable===false?{seekable:false}:{}),...(item.result.index===false?{noIndex:true}:{})}));
 }
 module.exports={probe,signature,filterPlayable};

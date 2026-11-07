@@ -209,3 +209,12 @@ test('apps: 1080p before 4K, unless the 1080p file is known to lack the language
   const order = list => audio.preferLanguage(list, 'hi', { client: 'app' }).map(s => s.link).join(' ');
   assert.equal(order([uhdHindi, uhdUnknown, hdStuck, hdTamil, hdUnknown, hdHindi]), 'hd-hi hd-? uhd-hi uhd-? hd-ta hd-stuck');
 });
+
+test('apps put an MKV without an index after ones that can jump, but before ones that cannot seek at all', () => {
+  const t = [{ index: 0, language: 'hi', codec: 'aac', label: 'Hindi', title: '', default: true }];
+  const noIndex = { link: 'no-index', type: 'mkv', height: 1080, noIndex: true, audioTracks: t };
+  const stuck = { link: 'stuck', type: 'mkv', height: 1080, seekable: false, audioTracks: t };
+  const uhd = { link: 'uhd', type: 'mkv', height: 2160, audioTracks: t };
+  const order = client => audio.preferLanguage([stuck, noIndex, uhd], 'hi', { client }).map(s => s.link).join(' ');
+  assert.equal(order('app'), 'uhd no-index stuck');
+});
