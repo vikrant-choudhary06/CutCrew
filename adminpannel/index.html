@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>CutCrew Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Sign in: the admin token (ADMIN_TOKEN on the server). Kept for this tab only. -->
+  <main id="login" class="login" hidden>
+    <form id="login-form" class="login-card">
+      <div class="brand"><span class="mark" aria-hidden="true"></span>CutCrew Admin</div>
+      <label for="token">Admin token</label>
+      <input id="token" type="password" autocomplete="current-password" required maxlength="400">
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </main>
+
+  <div id="shell" class="shell" hidden>
+    <aside class="side">
+      <div class="brand"><span class="mark" aria-hidden="true"></span>CutCrew Admin</div>
+      <nav id="nav" aria-label="Sections">
+        <button data-tab="overview" class="active">Overview</button>
+        <button data-tab="live">Live</button>
+        <button data-tab="downloads">Downloads</button>
+        <button data-tab="providers">Providers</button>
+        <button data-tab="storage">Storage</button>
+        <button data-tab="catalogue">Catalogue</button>
+        <button data-tab="logs">Logs</button>
+      </nav>
+      <div class="side-foot">
+        <span id="pulse" class="pulse" title="Updates every few seconds"></span><span id="updated">—</span>
+        <button id="logout" class="link">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <p id="status" class="status" role="status"></p>
+
+      <section id="tab-overview" class="tab">
+        <h1>Overview</h1>
+        <div class="stats" id="ov-stats"></div>
+        <div class="grid2">
+          <div class="panel"><h2>Server</h2><dl id="ov-server" class="facts"></dl></div>
+          <div class="panel"><h2>App release</h2><dl id="ov-app" class="facts"></dl></div>
+        </div>
+      </section>
+
+      <section id="tab-live" class="tab" hidden>
+        <h1>Live</h1>
+        <div class="stats" id="live-stats"></div>
+        <div class="panel"><h2>Streaming now</h2><div class="table-wrap"><table id="live-streams"></table></div></div>
+        <div class="panel"><h2>Online in the last 2 minutes</h2><div class="table-wrap"><table id="live-visitors"></table></div></div>
+      </section>
+
+      <section id="tab-downloads" class="tab" hidden>
+        <h1>Downloads</h1>
+        <div class="stats" id="dl-stats"></div>
+        <div class="panel"><h2>Last 14 days</h2><div id="dl-days" class="bars"></div></div>
+        <div class="grid2">
+          <div class="panel"><h2>By version</h2><div class="table-wrap"><table id="dl-versions"></table></div></div>
+          <div class="panel"><h2>By country</h2><div class="table-wrap"><table id="dl-countries"></table></div></div>
+        </div>
+        <div class="panel"><h2>Latest downloads</h2><div class="table-wrap"><table id="dl-recent"></table></div></div>
+        <div class="panel"><h2>GitHub release counts</h2><div class="table-wrap"><table id="dl-github"></table></div></div>
+      </section>
+
+      <section id="tab-providers" class="tab" hidden>
+        <h1>Providers</h1>
+        <p class="hint">A provider that is off is not asked for sources, and its saved links are not played. Changes apply within a few seconds.</p>
+        <div class="table-wrap"><table id="providers"></table></div>
+      </section>
+
+      <section id="tab-storage" class="tab" hidden>
+        <h1>Storage</h1>
+        <div class="stats" id="st-stats"></div>
+        <form id="st-search" class="row">
+          <input id="st-q" placeholder="Title or IMDb ID" maxlength="150" aria-label="Search stored videos">
+          <select id="st-state" aria-label="State">
+            <option value="">All states</option><option>ready</option><option>failed</option><option>unavailable</option><option>uploading</option><option>pending</option><option>superseded</option>
+          </select>
+          <button>Search</button>
+        </form>
+        <div class="panel"><h2>Stored videos</h2><div class="table-wrap"><table id="st-assets"></table></div></div>
+        <div class="panel"><h2>Auto-archive queue</h2><p id="aa-status" class="hint"></p><div class="table-wrap"><table id="aa-list"></table></div></div>
+      </section>
+
+      <section id="tab-catalogue" class="tab" hidden>
+        <h1>Catalogue</h1>
+        <form id="cat-search" class="row">
+          <input id="cat-q" placeholder="Find a title" maxlength="150" aria-label="Find a title">
+          <button>Search</button>
+        </form>
+        <div class="grid2">
+          <div class="panel"><h2>Titles</h2><ul id="cat-list" class="list"></ul></div>
+          <form id="cat-edit" class="panel" hidden>
+            <h2 id="cat-selected"></h2>
+            <label>Title<input id="cat-title" required maxlength="300"></label>
+            <label>New synopsis (optional)<textarea id="cat-plot" rows="5" maxlength="9999"></textarea></label>
+            <label>Genres (optional, comma separated)<input id="cat-genres" maxlength="1000"></label>
+            <button>Save changes</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="tab-logs" class="tab" hidden>
+        <h1>Logs</h1>
+        <pre id="logs" class="logs"></pre>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

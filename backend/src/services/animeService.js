@@ -18,11 +18,12 @@ function load() {
 }
 
 const playbackEnabled = () => process.env.ANIME_PLAYBACK !== 'false';
-function providerIds() {
+function providerIds({ includeSwitchedOff = false } = {}) {
   const bundle = load();
   if (!bundle) return [];
   const wanted = (process.env.ANIME_PROVIDERS || 'animeparadise').split(',').map(id => id.trim()).filter(Boolean);
-  return wanted.filter(id => bundle.PROVIDERS[id]);
+  // Switched off in the admin panel.
+  return wanted.filter(id => bundle.PROVIDERS[id] && (includeSwitchedOff || !require('./providerSwitches').isOff(id)));
 }
 
 const instances = new Map();

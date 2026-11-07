@@ -81,13 +81,16 @@ function policyOrder() {
 // Vega names also need to be installed and allowed by ENABLED_PROVIDERS.
 // Enabled vega providers missing from the list run last. A source the weekly
 // check turned off (see check-sources.cjs) is skipped until it passes again.
-function sourceOrder({ includeOff = false } = {}) {
+function sourceOrder({ includeOff = false, includeSwitchedOff = false } = {}) {
   const wanted = (process.env.STREAM_SOURCES || policyOrder().join(',')).split(',').map(id => id.trim()).filter(Boolean);
   const vega = getAvailableProvidersLocal();
-  const list = [...new Set([...wanted, ...vega])].filter(id => {
+  const vegaAll = includeSwitchedOff ? getAvailableProvidersLocal({ includeSwitchedOff: true }) : vega;
+  const list = [...new Set([...wanted, ...vegaAll])].filter(id => {
     if (process.env[`SOURCE_${id.toUpperCase()}`] === 'off') return false;
+    // Switched off in the admin panel.
+    if (!includeSwitchedOff && require('./providerSwitches').isOff(id)) return false;
     const def = sourceDef(id);
-    return def ? (!def.configured || def.configured()) : vega.includes(id);
+    return def ? (!def.configured || def.configured()) : vegaAll.includes(id);
   });
   if (includeOff) return list;
   const state = sourceState();

@@ -57,14 +57,16 @@ function loadProvider(provider, moduleName) {
   const target = path.join(distDir, provider, moduleName + '.js');
   return fs.existsSync(target) ? require(target) : {};
 }
-function getAvailableProvidersLocal({ includeUnverified = false } = {}) {
+function getAvailableProvidersLocal({ includeUnverified = false, includeSwitchedOff = false } = {}) {
   if (!fs.existsSync(distDir)) return [];
   const configured = process.env.ENABLED_PROVIDERS?.split(',').map(s => s.trim()).filter(Boolean);
   const defaults = require('../../../provider/provider-policy.json').defaultProviders;
   const enabled = configured || (includeUnverified ? null : defaults);
   const providers = fs.readdirSync(distDir, { withFileTypes: true })
     .filter(item => item.isDirectory() && fs.existsSync(path.join(distDir, item.name, 'stream.js')))
-    .map(item => item.name).filter(name => !enabled || enabled.includes(name));
+    .map(item => item.name).filter(name => !enabled || enabled.includes(name))
+    // Switched off in the admin panel.
+    .filter(name => includeSwitchedOff || !require('../services/providerSwitches').isOff(name));
   return providers.sort((a, b) => enabled ? enabled.indexOf(a) - enabled.indexOf(b) : a.localeCompare(b));
 }
 module.exports = { getProviderContext, getAvailableProvidersLocal, loadProvider };

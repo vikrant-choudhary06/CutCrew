@@ -15,7 +15,7 @@ const startCronJobs = () => {
     }
   });
   // Weekly provider check (Sundays 04:30): every installed provider, four sample
-  // movies, end to end. The result is shown under /admin/tools -> health.
+  // movies, end to end. The result is shown in the admin panel (Providers).
   if (process.env.PROVIDER_CHECK_WEEKLY !== 'false') {
     cron.schedule('30 4 * * 0', async () => {
       const ok = await require('../services/providerCheck').run();

@@ -199,7 +199,8 @@ async function* sourcesFor(req, { maxHeight }) {
   if (series !== (req.season != null)) throw new ArchiveError('INVALID_TITLE');
   const target = series ? episodeFor(movie, req.season, req.episode) : movie;
   const fresh = target?.stream_fetched_at && Date.now() - new Date(target.stream_fetched_at).getTime() < 3 * 3600000;
-  const cached = fresh ? normalizeStreams(target.stream_data) : [];
+  const switches = require('./providerSwitches');
+  const cached = fresh ? normalizeStreams(target.stream_data).filter(stream => !stream.provider || !switches.isOff(stream.provider)) : [];
   if (cached.length) yield orderCandidates(cached, maxHeight);
   const result = await resolvePlayback(movie.toObject(), { season: req.season ?? undefined, episode: req.episode ?? undefined, rediscover: cached.length > 0 })
     .catch(() => null);

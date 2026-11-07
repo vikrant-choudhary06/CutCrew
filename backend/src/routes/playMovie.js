@@ -31,7 +31,8 @@ router.get('/:imdb_id', async (req, res, next) => {
     const excludedProviders = typeof req.query.exclude === 'string' ? req.query.exclude.split(',').filter(Boolean).slice(0, 41) : [];
     // Telegram storage first (only when enabled and a Ready version exists).
     // The player excludes it after a failure, which falls through to providers.
-    if (!excludedProviders.includes(STORAGE_PROVIDER)) {
+    require('../services/liveActivity').notePlay(req, { imdbId: movie.imdb_id, title: movie.title, season: series ? season : null, episode: series ? episode : null });
+    if (!excludedProviders.includes(STORAGE_PROVIDER) && !require('../services/providerSwitches').isOff(STORAGE_PROVIDER)) {
       const stored = await storedSources({ imdbId: movie.imdb_id, season: series ? season : null, episode: series ? episode : null,
         quality: typeof req.query.quality === 'string' ? req.query.quality : undefined,
         runtimeMinutes: runtimeOf(movie, series ? episodeFor(movie, season, episode) : null) }, { log: event => console.warn(JSON.stringify(event)) });

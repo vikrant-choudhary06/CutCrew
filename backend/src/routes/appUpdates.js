@@ -30,11 +30,28 @@ function readRelease() {
   return null;
 }
 
-router.get('/app/android', (_req, res) => {
+router.get('/app/android', (req, res) => {
   const release = readRelease();
   if (!release) return res.status(404).json({ message: 'No release information' });
+  // The app downloads through our counting link (which redirects to GitHub),
+  // so in-app updates show up in the admin panel's downloads.
+  const host = req.get('host') || '';
+  const apkUrl = req.protocol === 'https' && /(^|.)vikrant.sbs$/i.test(host) ? `https://${host}/api/app/download/android?from=app` : release.apkUrl;
   // Not cached: the phone's HTTP cache would hide a new release.
-  res.set('Cache-Control', 'no-store').json(release);
+  res.set('Cache-Control', 'no-store').json({ ...release, apkUrl });
+});
+
+// Download links (website, landing page, app update): count, then send the
+// browser on to the file on GitHub.
+router.get('/app/download/:platform', (req, res) => {
+  const downloads = require('../services/appDownloads');
+  const platform = req.params.platform;
+  if (!downloads.FILES[platform]) return res.status(404).json({ message: 'Unknown download' });
+  const from = ['app', 'landing', 'web'].includes(req.query.from) ? req.query.from : 'web';
+  const release = platform === 'android' ? readRelease() : null;
+  const target = release && from === 'app' ? release.apkUrl : downloads.latestUrl(platform);
+  if (req.method === 'GET') downloads.record(req, { platform, version: release?.version, source: from }).catch(() => {});
+  res.set('Cache-Control', 'no-store').redirect(302, target);
 });
 
 // ---- Expo Updates ----------------------------------------------------------
