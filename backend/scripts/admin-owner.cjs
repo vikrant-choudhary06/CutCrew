@@ -19,6 +19,9 @@ function askHidden(question) {
   const email = process.argv[2];
   if (!email) { console.error('Usage: npm run admin:owner -- you@example.com'); process.exitCode = 1; return; }
   const password = await askHidden(`Password for ${email} (at least ${accounts.MIN_PASSWORD} characters): `);
+  // Typed twice: the password is hidden, so a typo would otherwise go unnoticed.
+  const again = await askHidden('Type the same password again: ');
+  if (password !== again) { console.error('The two passwords are different. Nothing was changed; run the command again.'); process.exitCode = 1; return; }
   await db();
   const { created, admin } = await accounts.setOwner({ email, password });
   console.log(created ? `Owner created: ${admin.email}` : `Owner password updated: ${admin.email} (other devices signed out)`);
