@@ -71,6 +71,8 @@ export default function Watch() {
   const retried = useRef(new Set<string>());
   // Controls: shown, locked, which menu is open, dragging the timeline.
   const [chrome, setChrome] = useState(true);
+  // TV: each remote press keeps the controls up a little longer.
+  const [nudge, setNudge] = useState(0);
   const [locked, setLocked] = useState(false);
   const [lockHint, setLockHint] = useState(0);
   const [menu, setMenu] = useState<null | 'audio' | 'speed' | 'episodes'>(null);
@@ -339,9 +341,9 @@ export default function Watch() {
   // the timeline is being dragged.
   useEffect(() => {
     if (!chrome || status !== 'ready' || menu || scrubbing || !playing) return;
-    const t = setTimeout(() => setChrome(false), tv ? 4000 : HIDE_MS);
+    const t = setTimeout(() => setChrome(false), tv ? 5000 : HIDE_MS);
     return () => clearTimeout(t);
-  }, [chrome, status, menu, scrubbing, playing, tv]);
+  }, [chrome, status, menu, scrubbing, playing, tv, nudge]);
   // While locked, a tap shows the unlock button for a few seconds.
   useEffect(() => {
     if (!lockHint) return;
@@ -397,10 +399,42 @@ export default function Watch() {
     return (
       <View style={w.screen} onTouchStart={() => setChrome(true)}>
         <StatusBar hidden />
-        <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls fullscreenOptions={{ enable: false }} allowsPictureInPicture={false} />
+        {/* A converted copy is one long stream to the TV's own controls: they cannot
+            jump in it and show no length. It gets these remote controls instead. */}
+        <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={!converted} fullscreenOptions={{ enable: false }} allowsPictureInPicture={false} />
+        {converted && status === 'ready' && !chrome && !audioMenu && (
+          <Focusable onPress={() => setChrome(true)} hasTVPreferredFocus accessibilityLabel="Show controls" style={StyleSheet.absoluteFill} focusStyle={{}}><View /></Focusable>
+        )}
+        {converted && (status === 'ready' || status === 'loading') && chrome && !audioMenu && (
+          <View style={w.tvBar}>
+            <View style={w.tvTrack}>
+              <View style={[w.tvFill, { width: `${shown.duration > 0 ? Math.min(100, (shown.position / shown.duration) * 100) : 0}%` }]} />
+            </View>
+            <View style={w.tvBarRow}>
+              <Text style={w.tvTime}>{clock(shown.position)}{shown.duration > 0 ? `  /  ${clock(shown.duration)}` : ''}</Text>
+              <View style={w.tvButtons}>
+                {([[-30, 'play-back', '30'], [-10, 'play-back-outline', '10']] as const).map(([delta, icon, label]) => (
+                  <Focusable key={delta} onPress={() => { seekBy(delta); setNudge(n => n + 1); }} accessibilityLabel={`Back ${label} seconds`} style={w.tvKey} focusStyle={w.tvKeyFocus}>
+                    <Ionicons name={icon} size={22} color={C.screen} /><Text style={w.tvKeyText}>{label}</Text>
+                  </Focusable>
+                ))}
+                <Focusable onPress={() => { togglePlay(); setNudge(n => n + 1); }} hasTVPreferredFocus accessibilityLabel={playing ? 'Pause' : 'Play'} style={[w.tvKey, w.tvPlay]} focusStyle={w.tvKeyFocus}>
+                  <Ionicons name={playing ? 'pause' : 'play'} size={30} color={C.marigoldInk} />
+                </Focusable>
+                {([[10, 'play-forward-outline', '10'], [30, 'play-forward', '30']] as const).map(([delta, icon, label]) => (
+                  <Focusable key={delta} onPress={() => { seekBy(delta); setNudge(n => n + 1); }} accessibilityLabel={`Forward ${label} seconds`} style={w.tvKey} focusStyle={w.tvKeyFocus}>
+                    <Text style={w.tvKeyText}>{label}</Text><Ionicons name={icon} size={22} color={C.screen} />
+                  </Focusable>
+                ))}
+              </View>
+              <View style={{ width: 160 }} />
+            </View>
+          </View>
+        )}
+        {converted && status === 'ready' && buffering && !chrome && <View style={w.center} pointerEvents="none"><ActivityIndicator size="large" color={C.marigold} /></View>}
         {(chrome || status !== 'ready') && (
           <View style={w.tvTop} pointerEvents="box-none">
-            <Focusable onPress={goBack} accessibilityLabel="Back" style={w.tvBack}>
+            <Focusable onPress={goBack} accessibilityLabel="Back" style={w.tvBack} focusable={!converted}>
               <Ionicons name="chevron-back" size={28} color={C.screen} />
             </Focusable>
             <View style={{ flex: 1 }}>
@@ -571,6 +605,16 @@ const w = StyleSheet.create({
   nextText: { color: C.night, fontFamily: F.bold, fontSize: 15 },
   // Android TV layout (built-in controls).
   tvTop: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 6, padding: 12, backgroundColor: 'rgba(0,0,0,0.35)' },
+  tvBar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 48, paddingTop: 18, paddingBottom: 28, backgroundColor: 'rgba(0,0,0,0.55)' },
+  tvTrack: { height: 6, borderRadius: 3, backgroundColor: 'rgba(242,240,234,0.25)', overflow: 'hidden' },
+  tvFill: { height: 6, backgroundColor: C.marigold },
+  tvBarRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16 },
+  tvTime: { width: 160, color: C.screen, fontFamily: F.bold, fontSize: 16 },
+  tvButtons: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  tvKey: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 52, paddingHorizontal: 18, borderRadius: 26, backgroundColor: 'rgba(242,240,234,0.14)', borderWidth: 2, borderColor: 'transparent' },
+  tvPlay: { width: 68, height: 68, borderRadius: 34, justifyContent: 'center', paddingHorizontal: 0, backgroundColor: C.marigold },
+  tvKeyFocus: { borderColor: C.screen, transform: [{ scale: 1.08 }] },
+  tvKeyText: { color: C.screen, fontFamily: F.bold, fontSize: 16 },
   tvBack: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
   tvTitle: { color: C.screen, fontFamily: F.bold, fontSize: 18 },
   tvAudio: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, height: 42, borderRadius: 21, backgroundColor: 'rgba(15,19,32,0.7)', borderWidth: 1, borderColor: 'rgba(242,240,234,0.3)' },

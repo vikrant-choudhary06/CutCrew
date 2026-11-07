@@ -69,7 +69,7 @@ export default function TitleScreen() {
         {!!t.plot && <Text style={st.plot}>{t.plot}</Text>}
         {cast.length > 0 && <Text style={st.cast}><Text style={{ color: C.dust }}>Starring </Text>{cast.slice(0, 4).join(', ')}</Text>}
         <View style={st.actions}>
-          <Button label={playLabel} icon="▶" onPress={play} />
+          <Button label={playLabel} icon="▶" onPress={play} preferFocus />
           <RoundButton label={saved ? 'Remove from My List' : 'Add to My List'} icon={saved ? '✓' : '+'} active={saved} onPress={() => lib.toggleWatchlist(t)} />
         </View>
       </View>

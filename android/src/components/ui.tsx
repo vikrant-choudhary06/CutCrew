@@ -40,10 +40,10 @@ export function Art({ uri, label, style, radius = R.card }: { uri?: string; labe
   );
 }
 
-export function Button({ label, onPress, kind = 'play', icon, style }: { label: string; onPress: () => void; kind?: 'play' | 'quiet'; icon?: string; style?: StyleProp<ViewStyle> }) {
+export function Button({ label, onPress, kind = 'play', icon, style, preferFocus }: { label: string; onPress: () => void; kind?: 'play' | 'quiet'; icon?: string; style?: StyleProp<ViewStyle>; preferFocus?: boolean }) {
   const play = kind === 'play';
   return (
-    <Focusable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+    <Focusable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hasTVPreferredFocus={preferFocus}
       style={[s.button, { backgroundColor: play ? C.marigold : 'rgba(242,240,234,0.14)' }, style]} focusStyle={s.buttonFocus}>
       {!!icon && <Text style={[s.buttonIcon, { color: play ? C.marigoldInk : C.screen }]}>{icon}</Text>}
       <Text style={[s.buttonText, { color: play ? C.marigoldInk : C.screen }]}>{label}</Text>
