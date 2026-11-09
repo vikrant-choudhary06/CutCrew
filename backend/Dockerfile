@@ -3,8 +3,8 @@ WORKDIR /build/provider
 COPY provider/package*.json ./
 RUN npm ci
 COPY provider/ ./
-# Anime providers (anime-sdk) are bundled by the same build into dist-anime.
-COPY provider_anime/src /build/provider_anime/src
+# Movie providers (provider/movie) build into dist; the anime providers
+# (provider/anime/animeparadise) are bundled by the same build into dist-anime.
 RUN npm run build
 
 FROM node:24-bookworm-slim

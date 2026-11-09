@@ -1,5 +1,8 @@
 # Nuvio providers used by CutCrew
 
+Movie ones live in `provider/movie/nuvio/`, anime ones in `provider/anime/nuvio/`;
+the runner image copies both into one folder.
+
 Copied once (not auto-synced) from the NuvioPlugin/All-in-One-Nuvio mirror on
 2026-11-09. They were picked after a test from the CutCrew server: each found
 the right title and a playable link for all 10 test titles (einthusan: Indian

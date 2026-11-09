@@ -11,6 +11,6 @@ reports
 frontend/dist
 provider/dist
 provider/dist-anime
-provider_anime/website
-provider_anime/tests
-provider_anime/examples
+provider/anime/animeparadise/website
+provider/anime/animeparadise/tests
+provider/anime/animeparadise/examples

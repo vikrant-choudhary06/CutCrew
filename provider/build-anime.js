@@ -1,14 +1,14 @@
-// Bundles the anime providers (provider_anime/src/cutcrew.ts) into one CommonJS
+// Bundles the anime providers (provider/anime/animeparadise/src/cutcrew.ts) into one CommonJS
 // file the backend loads: provider/dist-anime/anime.cjs.
 const path = require("path");
 const fs = require("fs");
 const esbuild = require("esbuild");
 
-const entry = path.resolve(__dirname, "../provider_anime/src/cutcrew.ts");
+const entry = path.resolve(__dirname, "anime/animeparadise/src/cutcrew.ts");
 const outfile = path.resolve(__dirname, "dist-anime/anime.cjs");
 
 if (!fs.existsSync(entry)) {
-  console.log("Skipping anime build: provider_anime/src/cutcrew.ts not found");
+  console.log("Skipping anime build: provider/anime/animeparadise/src/cutcrew.ts not found");
   process.exit(0);
 }
 

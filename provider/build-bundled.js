@@ -6,14 +6,17 @@ const { minify } = require("terser");
 const SKIP_MINIFY = process.env.SKIP_MINIFY === "true";
 
 // Find all provider directories
-const providersDir = path.join(__dirname, "providers");
+// Movie providers (vega style). provider/movie/nuvio holds the Nuvio files
+// for the locked runner; they are not built here.
+const providersDir = path.join(__dirname, "movie");
 const providerDirs = fs
   .readdirSync(providersDir, { withFileTypes: true })
   .filter(
     (dirent) =>
       dirent.isDirectory() &&
       !dirent.name.startsWith(".") &&
-      dirent.name !== "extractors",
+      dirent.name !== "extractors" &&
+      dirent.name !== "nuvio",
   )
   .map((dirent) => dirent.name);
 

@@ -2,13 +2,13 @@
   "compilerOptions": {
     "target": "es2015",
     "module": "commonjs",
-    "rootDir": "./providers",
+    "rootDir": "./movie",
     "outDir": "./dist",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["providers/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["movie/**/*"],
+  "exclude": ["node_modules", "dist", "movie/nuvio", "anime", "nuvio-runner"]
 }

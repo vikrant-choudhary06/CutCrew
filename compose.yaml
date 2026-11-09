@@ -62,7 +62,7 @@ services:
   nuvio-runner:
     build:
       context: .
-      dockerfile: deploy/nuvio-runner/Dockerfile
+      dockerfile: provider/nuvio-runner/Dockerfile
     networks: [nuvio]
     read_only: true
     tmpfs: [/tmp]

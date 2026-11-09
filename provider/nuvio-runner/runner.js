@@ -8,7 +8,8 @@ const path = require('path');
 
 const PORT = Number(process.env.PORT) || 7070;
 const TIMEOUT_MS = Number(process.env.NUVIO_TIMEOUT_MS) || 40000;
-// Only these files are ever loaded (see providers/SOURCES.md).
+// Only these files are ever loaded (see SOURCES.md next to this file; they come
+// from provider/movie/nuvio and provider/anime/nuvio).
 const ALLOWED = new Set(['castle', 'moviebox', 'playimdb', 'einthusan', 'watchanimeworld', 'multimovies']);
 const MAX_ACTIVE = 8;
 let active = 0;

@@ -1,5 +1,5 @@
 // Anime playback: AniList title + episode number -> a playable stream from the
-// anime providers (provider_anime, bundled into provider/dist-anime/anime.cjs).
+// anime providers (provider/anime/animeparadise, bundled into provider/dist-anime/anime.cjs).
 // Providers are tried in ANIME_PROVIDERS order; ANIME_PLAYBACK=false turns
 // playback off while the catalogue keeps working.
 const path = require('path');

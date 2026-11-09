@@ -1,5 +1,5 @@
 // Multi-source playback. Two kinds of sources, one stream format:
-//   vega    - CutCrew's provider modules (provider/dist), via attemptProvider()
+//   vega    - CutCrew's provider modules (provider/movie, built to provider/dist), via attemptProvider()
 //   stremio - Stremio add-on APIs (/stream/<type>/<imdbId>.json): DesiFlix,
 //             HdHub, CENSORED, PenguPlay (listed in STREMIO_ADDONS)
 // All enabled sources run in parallel, each with its own time limit. A slow or
