@@ -19,7 +19,7 @@ function fakeFetch(calls, { tmdb = 872906, streams } = {}) {
 }
 
 test('the Nuvio sources exist only when NUVIO_URL is set', () => {
-  assert.deepEqual(Object.keys(sources.nuvioSources()), ['castle', 'moviebox', 'playimdb', 'einthusan']);
+  assert.deepEqual(Object.keys(sources.nuvioSources()), ['castle', 'moviebox', 'playimdb', 'einthusan', 'watchanimeworld', 'multimovies']);
   assert.equal(sources.kindOf('castle'), 'nuvio');
   assert.equal(sources.labelOf('playimdb'), 'PlayIMDb');
   const saved = process.env.NUVIO_URL; delete process.env.NUVIO_URL;

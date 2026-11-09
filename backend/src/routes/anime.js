@@ -44,13 +44,15 @@ router.get('/:id/play', async (req, res, next) => {
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: 'Invalid anime' });
     if (!Number.isInteger(episode) || episode < 1 || episode > 10000) return res.status(400).json({ message: 'Choose a valid episode' });
     const exclude = text(req.query.exclude).split(',').filter(Boolean).slice(0, 10);
-    const key = `${id}:${episode}:${[...exclude].sort().join(',')}`;
+    // Dubbed streams start in this audio language (default Hindi).
+    const language = require('../services/audioTracks').preferredLanguage(text(req.query.lang));
+    const key = `${id}:${episode}:${language}:${[...exclude].sort().join(',')}`;
     const hit = played.get(key);
     let result;
     if (req.query.refresh !== '1' && hit && hit.until > Date.now()) result = hit.value;
     else {
       if (!pending.has(key)) {
-        pending.set(key, anime.play(id, episode, { exclude }).then(value => {
+        pending.set(key, anime.play(id, episode, { exclude, language }).then(value => {
           if (played.size > 500) played.delete(played.keys().next().value);
           played.set(key, { value, until: Date.now() + PLAY_MS });
           return value;

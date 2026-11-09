@@ -121,14 +121,22 @@ function englishFirst(streams) {
   return streams;
 }
 
-async function play(anilistId, episode, { exclude = [] } = {}) {
+async function play(anilistId, episode, { exclude = [], language = 'hi' } = {}) {
   if (!playbackEnabled()) throw Object.assign(new Error('Anime playback is turned off right now.'), { status: 503 });
   const ids = providerIds().filter(id => !exclude.includes(id));
-  if (!ids.length) throw Object.assign(new Error('No anime sources are available right now.'), { status: 503 });
+  if (!ids.length && !require('./animeNama').SOURCES.some(id => !exclude.includes(id) && require('./streamSources').nuvioSources()[id])) {
+    throw Object.assign(new Error('No anime sources are available right now.'), { status: 503 });
+  }
   const anime = await anilist.details(anilistId);
   if (!Number.isInteger(episode) || episode < 1 || (anime.episodes_available && episode > anime.episodes_available)) {
     throw Object.assign(new Error('This episode is not available yet.'), { status: 404 });
   }
+  // Indian dubs (WatchAnimeWorld, MultiMovies) are looked up at the same time
+  // and listed first; the Japanese source with English subtitles follows.
+  const nama = require('./animeNama');
+  const dubbed = nama.SOURCES.some(id => !exclude.includes(id))
+    ? nama.streams(anime, episode, { language }).then(list => list.filter(s => !exclude.includes(s.provider))).catch(() => [])
+    : Promise.resolve([]);
   const problems = [];
   for (const id of ids) {
     try {
@@ -140,12 +148,14 @@ async function play(anilistId, episode, { exclude = [] } = {}) {
       const language = unit.availableLanguages?.includes('sub') ? 'sub' : unit.availableLanguages?.[0];
       const resolved = await provider(id).resolveStream(unit.id, language);
       const streams = (resolved?.type === 'video' ? resolved.streams : []).filter(s => /^https?:\/\//.test(s.sourceUrl || '')).map(s => toStream(s, id));
-      if (streams.length) return { provider: id, streams: englishFirst(streams), match: media };
+      if (streams.length) { const extra = await dubbed; return { provider: extra[0]?.provider || id, streams: [...extra, ...englishFirst(streams)], match: media }; }
       problems.push(`${id}: no stream`);
     } catch (error) {
       problems.push(`${id}: ${error.message}`);
     }
   }
+  const extra = await dubbed;
+  if (extra.length) return { provider: extra[0].provider, streams: extra, match: null };
   throw Object.assign(new Error('This episode could not be found on the anime sources. Try again later.'), { status: 404, problems });
 }
 

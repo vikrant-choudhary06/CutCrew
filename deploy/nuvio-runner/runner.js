@@ -7,9 +7,9 @@ const http = require('http');
 const path = require('path');
 
 const PORT = Number(process.env.PORT) || 7070;
-const TIMEOUT_MS = Number(process.env.NUVIO_TIMEOUT_MS) || 25000;
+const TIMEOUT_MS = Number(process.env.NUVIO_TIMEOUT_MS) || 40000;
 // Only these files are ever loaded (see providers/SOURCES.md).
-const ALLOWED = new Set(['castle', 'moviebox', 'playimdb', 'einthusan']);
+const ALLOWED = new Set(['castle', 'moviebox', 'playimdb', 'einthusan', 'watchanimeworld', 'multimovies']);
 const MAX_ACTIVE = 8;
 let active = 0;
 
@@ -29,7 +29,10 @@ function provider(name) {
 
 const clean = value => (typeof value === 'string' ? value.slice(0, 500) : undefined);
 function tidy(item) {
-  if (!item || typeof item !== 'object' || typeof item.url !== 'string' || !/^https?:\/\//i.test(item.url) || item.url.length > 4000) return null;
+  if (!item || typeof item !== 'object' || typeof item.url !== 'string') return null;
+  // A web link, or (NAMA providers) an HLS playlist packed into a data: link.
+  const packed = item.url.startsWith('data:application/vnd.apple.mpegurl;base64,') && item.url.length <= 40000;
+  if (!packed && (!/^https?:\/\//i.test(item.url) || item.url.length > 4000)) return null;
   const headers = {};
   const given = item.headers || (item.behaviorHints && item.behaviorHints.proxyHeaders && item.behaviorHints.proxyHeaders.request) || {};
   for (const [key, value] of Object.entries(given)) if (typeof value === 'string' && /^[A-Za-z0-9-]{1,40}$/.test(key)) headers[key] = value.slice(0, 1000);

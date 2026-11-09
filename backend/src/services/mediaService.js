@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const zlib = require('node:zlib');
 const dns = require('dns');
 const net = require('net');
 const http = require('http');
@@ -68,12 +69,12 @@ async function openMedia(value, inputHeaders, range, signal) {
     url = next.href;
   }
 }
-function signMedia(url, headers = {}, format = '', expires = Date.now() + 4 * 3600000) {
+function signMedia(url, headers = {}, format = '', expires = Date.now() + 4 * 3600000, extra = {}) {
   validateUrl(url);
   // Encrypt as well as authenticate: provider cookies and signed upstream URLs stay private.
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', secret, iv);
-  const encrypted = Buffer.concat([cipher.update(JSON.stringify({ url, headers: safeHeaders(headers), format, expires })), cipher.final()]);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify({ ...extra, url, headers: safeHeaders(headers), format, expires })), cipher.final()]);
   return '/api/media?token=' + [iv, cipher.getAuthTag(), encrypted].map(value => value.toString('base64url')).join('.');
 }
 function verifyToken(token) {
@@ -88,6 +89,30 @@ function verifyToken(token) {
   if (!Number.isFinite(data.expires) || data.expires < Date.now()) throw new Error('Media token expired');
   validateUrl(data.url);
   return data;
+}
+// Every address a playlist points to (lines and URI="..." attributes).
+function playlistUris(body) {
+  const uris = [];
+  for (const line of String(body || '').split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('#')) { for (const m of trimmed.matchAll(/URI="([^"]+)"/g)) uris.push(m[1]); }
+    else uris.push(trimmed);
+  }
+  return uris;
+}
+// A playlist that came as text (a provider packed it into a data: link). It
+// travels, compressed, inside the encrypted media token; the relay serves it
+// like any other playlist. Every address in it must be a public web address.
+function signPlaylist(body, headers = {}, expires = Date.now() + 4 * 3600000) {
+  const text = String(body || '');
+  if (!text.trimStart().startsWith('#EXTM3U') || text.length > 60000) throw new Error('Not an HLS playlist');
+  const uris = playlistUris(text);
+  if (!uris.length || uris.some(uri => !/^https?:\/\//i.test(uri))) throw new Error('Playlist needs absolute web addresses');
+  for (const uri of uris) validateUrl(uri);
+  const doc = zlib.deflateRawSync(Buffer.from(text)).toString('base64');
+  const variant = text.split(/\r?\n/).map(line => line.trim()).find(line => line && !line.startsWith('#'));
+  return signMedia(variant || uris[0], headers, 'hlsdoc', expires, { doc });
 }
 function rewritePlaylist(body, base, ticket) {
   const rewrite = uri => signMedia(new URL(uri, base).href, ticket.headers, '', ticket.expires);
@@ -112,6 +137,8 @@ function presentStreams(streams, { client = 'web' } = {}) {
       // An MKV the app's player cannot jump in (no index, or a host that ignores
       // ranges) is converted like on the website; the app seeks by asking again
       // with start=. Other MKV files go to the app as they are.
+      // A packed playlist (NAMA providers) is served by the relay from the token.
+      if (stream.playlist) return [{ ...stream, playlist: undefined, type: 'hls', remuxed: false, headers: undefined, link: signPlaylist(stream.playlist, stream.headers), subtitles }];
       const convert = stream.type === 'mkv' && (stream.noIndex || stream.seekable === false);
       if (app && !convert) return [{ ...stream, remuxed: false, headers: undefined, link: signMedia(stream.link, stream.headers, stream.type === 'mkv' ? 'raw' : stream.type), subtitles }];
       return [{ ...stream, type: stream.type === 'mkv' ? 'mp4' : stream.type, remuxed: stream.type === 'mkv',
@@ -156,6 +183,13 @@ async function relay(req, res) {
   try { ticket = verifyToken(req.query.token); }
   catch { return res.status(403).json({ error: 'Invalid or expired media link' }); }
   if (ticket.format === 'mkv') return remuxMedia(req, res, ticket, signMedia);
+  if (ticket.format === 'hlsdoc') {
+    let body;
+    try { body = zlib.inflateRawSync(Buffer.from(String(ticket.doc || ''), 'base64')).toString(); }
+    catch { return res.status(400).json({ error: 'Invalid playlist' }); }
+    return res.set('Cache-Control', 'private, no-store').type('application/vnd.apple.mpegurl')
+      .send(rewritePlaylist(body, ticket.url, { ...ticket, headers: safeHeaders(ticket.headers) }));
+  }
   const controller = new AbortController();
   res.on('close', () => controller.abort());
   try {
@@ -233,4 +267,4 @@ async function relay(req, res) {
     else res.destroy();
   }
 }
-module.exports = { mediaKind, firstChunk, relay, presentStreams, signMedia, verifyToken, rewritePlaylist, publicAddress, validateUrl, safeLookup, openMedia };
+module.exports = { playlistUris, signPlaylist, mediaKind, firstChunk, relay, presentStreams, signMedia, verifyToken, rewritePlaylist, publicAddress, validateUrl, safeLookup, openMedia };

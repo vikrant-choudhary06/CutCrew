@@ -18,10 +18,12 @@
     "moviebox",
     "playimdb",
     "einthusan",
+    "multimovies",
+    "watchanimeworld",
     "censored",
     "pengu",
     "4khdhub",
     "internetArchive"
   ],
-  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix, hdhub, censored and pengu are Stremio add-ons listed in STREMIO_ADDONS (pengu only with your own signed-in link); 4khdhub and internetArchive are vega-style providers and also need ENABLED_PROVIDERS. castle, moviebox, playimdb and einthusan are Nuvio providers run by the nuvio-runner container (NUVIO_URL); einthusan is for Indian films only."
+  "streamSourcesDescription": "Playback sources tried together, in ranking order (STREAM_SOURCES in .env overrides it). desiflix, hdhub, censored and pengu are Stremio add-ons listed in STREMIO_ADDONS (pengu only with your own signed-in link); 4khdhub and internetArchive are vega-style providers and also need ENABLED_PROVIDERS. castle, moviebox, playimdb and einthusan are Nuvio providers run by the nuvio-runner container (NUVIO_URL); einthusan is for Indian films only; multimovies and watchanimeworld (NAMA) bring Indian dubs, watchanimeworld for animated titles only."
 }

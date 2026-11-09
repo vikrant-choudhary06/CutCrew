@@ -99,7 +99,7 @@ function AnimeTitlePage({ id }) {
           <button className="button button--round" aria-pressed={saved} aria-label={saved ? 'Remove from My List' : 'Add to My List'} title={saved ? 'In My List' : 'Add to My List'} onClick={() => library.toggleWatchlist(data)}><Icon name={saved ? 'check' : 'plus'} /></button>
         </div>
         {!loading && why && <p className="muted anime-note">{why}</p>}
-        {!loading && canPlay && <p className="muted anime-note">Japanese audio · subtitles in the player</p>}
+        {!loading && canPlay && <p className="muted anime-note">Hindi, Tamil, Telugu, Japanese and more · switch audio in the player</p>}
         {error && <p className="inline-error">{error} <button className="text-button" onClick={retry}>Try again</button></p>}
       </div>
     </section>

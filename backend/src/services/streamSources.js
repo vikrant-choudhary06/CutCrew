@@ -62,6 +62,10 @@ const NUVIO_INFO = {
   moviebox: { label: 'MovieBox', timeoutMs: 25000 },
   playimdb: { label: 'PlayIMDb' },
   einthusan: { label: 'Einthusan' },
+  // NAMA: Indian dubs of anime (and, for MultiMovies, films and series), one
+  // stream per resolution carrying every audio language.
+  watchanimeworld: { label: 'WatchAnimeWorld' },
+  multimovies: { label: 'MultiMovies', timeoutMs: 35000 },
 };
 function nuvioSources() {
   const base = String(process.env.NUVIO_URL || '').replace(/\/+$/, '');
@@ -221,20 +225,44 @@ async function tmdbIdOf(title, { signal, fetch: get = fetch } = {}) {
   return id;
 }
 
-async function nuvioStreams(source, title, { signal, fetch: get = fetch } = {}) {
-  const tmdb = await tmdbIdOf(title, { signal, fetch: get });
+const isAnimated = title => title?.kind === 'anime' || [title?.genres].flat().some(g => /anim/i.test(String(g || '')));
+const PACKED = 'data:application/vnd.apple.mpegurl;base64,';
+
+// A stream whose link is a playlist packed into a data: link: kept as text
+// (the relay serves it), checked through its first variant.
+function fromPacked(item, source) {
+  const { playlistUris } = require('./mediaService');
+  const { fromPlaylist, languageName } = require('./audioTracks');
+  let doc;
+  try { doc = Buffer.from(item.url.slice(PACKED.length), 'base64').toString('utf8'); } catch { return null; }
+  if (!doc.trimStart().startsWith('#EXTM3U')) return null;
+  const variant = playlistUris(doc).find(uri => /^https?:\/\//i.test(uri) && !doc.includes(`URI="${uri}"`));
+  if (!variant) return null;
+  const stream = fromAddon({ ...item, url: variant }, source);
+  if (!stream) return null;
+  const audioTracks = fromPlaylist(doc);
+  const names = [...new Set(audioTracks.map(t => languageName(t.language) || t.title).filter(Boolean))];
+  return { ...stream, type: 'hls', playlist: doc, audioTracks, audio: names, language: names.join(', ') || stream.language };
+}
+
+async function nuvioStreams(source, title, { signal, fetch: get = fetch, tmdb: givenTmdb, type: givenType, season: givenSeason, episode: givenEpisode } = {}) {
+  const tmdb = givenTmdb || await tmdbIdOf(title, { signal, fetch: get });
   if (!tmdb) return [];
-  const series = isSeries(title);
+  const series = givenType ? givenType === 'tv' : isSeries(title);
   const query = new URLSearchParams({ provider: source, tmdb: String(tmdb), type: series ? 'tv' : 'movie',
-    ...(series ? { season: String(title.season || 1), episode: String(title.episode || 1) } : {}) });
+    ...(series ? { season: String(givenSeason || title.season || 1), episode: String(givenEpisode || title.episode || 1) } : {}) });
   const response = await get(`${sourceDef(source).base()}/streams?${query}`, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const body = await response.json();
   // Same shape as a Stremio add-on stream, so the same checks apply.
-  return (Array.isArray(body?.streams) ? body.streams : []).map(item => fromAddon({
-    url: item.url, name: item.name, title: item.title, quality: item.quality, type: item.type, size: Number(item.size) || undefined,
-    behaviorHints: { proxyHeaders: { request: item.headers || {} } },
-  }, source)).filter(Boolean);
+  const streams = (Array.isArray(body?.streams) ? body.streams : []).map(item => {
+    const shaped = { url: item.url, name: item.name, title: item.title, description: typeof item.size === 'string' ? item.size : undefined,
+      quality: item.quality, type: item.type, size: Number(item.size) || undefined, behaviorHints: { proxyHeaders: { request: item.headers || {} } } };
+    return String(item.url).startsWith(PACKED) ? fromPacked(shaped, source) : fromAddon(shaped, source);
+  }).filter(Boolean);
+  // NAMA also sends one copy per language; the multi-audio one is enough.
+  const multi = streams.filter(s => (s.audioTracks?.length || 0) > 1);
+  return multi.length ? streams.filter(s => !s.playlist || (s.audioTracks?.length || 0) > 1) : streams;
 }
 
 // Video length in seconds (ffprobe), or null when it cannot be read.
@@ -325,6 +353,8 @@ function skipReason(source, title) {
   if (kindOf(source) === 'nuvio' && !/^tt\d{5,12}$/.test(title.imdb_id || '')) return 'needs an IMDb title';
   // Einthusan has Indian films only.
   if (source === 'einthusan' && (isSeries(title) || !isIndian(title))) return 'Indian films only';
+  // WatchAnimeWorld has anime and cartoons only.
+  if (source === 'watchanimeworld' && !isAnimated(title)) return 'animation only';
   return '';
 }
 
@@ -469,6 +499,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, nuvioStreams, tmdbIdOf, nuvioSources, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, nuvioStreams, tmdbIdOf, nuvioSources, fromPacked, isAnimated, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, kindOf, labelOf, DEFAULT_ORDER,
 };
