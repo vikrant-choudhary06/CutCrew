@@ -1,0 +1,9 @@
+{
+  "name": "cutcrew-nuvio-runner",
+  "private": true,
+  "description": "Runs a few third-party Nuvio providers in their own locked container",
+  "main": "runner.js",
+  "dependencies": {
+    "crypto-js": "4.2.0"
+  }
+}

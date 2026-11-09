@@ -53,7 +53,29 @@ function stremioAddons() {
   return addons;
 }
 
-const sourceDef = id => stremioAddons()[id] || null;
+// Nuvio providers (third-party, obfuscated code) run in the separate
+// nuvio-runner container, which holds no secrets; the backend only asks it for
+// links. On when NUVIO_URL is set; NUVIO_SOURCES picks which ones.
+const NUVIO_INFO = {
+  castle: { label: 'Castle' },
+  // MovieBox signs every request and often needs 5–15 s.
+  moviebox: { label: 'MovieBox', timeoutMs: 25000 },
+  playimdb: { label: 'PlayIMDb' },
+  einthusan: { label: 'Einthusan' },
+};
+function nuvioSources() {
+  const base = String(process.env.NUVIO_URL || '').replace(/\/+$/, '');
+  if (!/^https?:\/\/[^\s]+$/i.test(base)) return {};
+  const sources = {};
+  for (const id of (process.env.NUVIO_SOURCES || Object.keys(NUVIO_INFO).join(',')).split(',').map(x => x.trim())) {
+    if (!NUVIO_INFO[id]) continue;
+    sources[id] = { kind: 'nuvio', label: NUVIO_INFO[id].label, base: () => base,
+      timeoutMs: () => Number(process.env[`${id.toUpperCase()}_TIMEOUT_MS`]) || NUVIO_INFO[id].timeoutMs || 15000 };
+  }
+  return sources;
+}
+
+const sourceDef = id => stremioAddons()[id] || nuvioSources()[id] || null;
 
 // ---- Source list ---------------------------------------------------------
 
@@ -181,6 +203,40 @@ async function stremioStreams(source, title, { signal, fetch: get = fetch } = {}
   return (Array.isArray(body?.streams) ? body.streams : []).map(item => fromAddon(item, source)).filter(Boolean);
 }
 
+// TMDB id for an IMDb title (the Nuvio providers want it), from Cinemeta,
+// which needs no key. Kept for a day; a failed lookup is tried again later.
+const tmdbCache = new Map();
+async function tmdbIdOf(title, { signal, fetch: get = fetch } = {}) {
+  const series = isSeries(title);
+  const key = `${series ? 'series' : 'movie'}:${title.imdb_id}`;
+  const cached = tmdbCache.get(key);
+  if (cached && cached.until > Date.now()) return cached.id;
+  let id = null;
+  try {
+    const response = await get(`https://v3-cinemeta.strem.io/meta/${series ? 'series' : 'movie'}/${encodeURIComponent(title.imdb_id)}.json`, { headers: { Accept: 'application/json' }, signal });
+    if (response.ok) id = Number((await response.json())?.meta?.moviedb_id) || null;
+  } catch (error) { if (signal?.aborted) throw error; }
+  if (tmdbCache.size > 5000) tmdbCache.delete(tmdbCache.keys().next().value);
+  tmdbCache.set(key, { id, until: Date.now() + (id ? 86400000 : 600000) });
+  return id;
+}
+
+async function nuvioStreams(source, title, { signal, fetch: get = fetch } = {}) {
+  const tmdb = await tmdbIdOf(title, { signal, fetch: get });
+  if (!tmdb) return [];
+  const series = isSeries(title);
+  const query = new URLSearchParams({ provider: source, tmdb: String(tmdb), type: series ? 'tv' : 'movie',
+    ...(series ? { season: String(title.season || 1), episode: String(title.episode || 1) } : {}) });
+  const response = await get(`${sourceDef(source).base()}/streams?${query}`, { headers: { Accept: 'application/json' }, signal });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const body = await response.json();
+  // Same shape as a Stremio add-on stream, so the same checks apply.
+  return (Array.isArray(body?.streams) ? body.streams : []).map(item => fromAddon({
+    url: item.url, name: item.name, title: item.title, quality: item.quality, type: item.type, size: Number(item.size) || undefined,
+    behaviorHints: { proxyHeaders: { request: item.headers || {} } },
+  }, source)).filter(Boolean);
+}
+
 // Video length in seconds (ffprobe), or null when it cannot be read.
 function durationOf(stream, { timeoutMs = 8000, run } = {}) {
   const exec = run || ((args, options) => new Promise((resolve, reject) => {
@@ -266,6 +322,9 @@ function withTimeout(work, ms, controller) {
 function skipReason(source, title) {
   const maxYear = Number(process.env.IA_MAX_YEAR) || 1980;
   if (source === 'internetArchive' && Number(title.release_year) > maxYear) return `only for films up to ${maxYear}`;
+  if (kindOf(source) === 'nuvio' && !/^tt\d{5,12}$/.test(title.imdb_id || '')) return 'needs an IMDb title';
+  // Einthusan has Indian films only.
+  if (source === 'einthusan' && (isSeries(title) || !isIndian(title))) return 'Indian films only';
   return '';
 }
 
@@ -285,7 +344,9 @@ async function runSource(source, title, options = {}) {
         const streams = (found?.streams || []).map(stream => ({ ...stream, provider: source, server: [labelOf(source), stream.server].filter(Boolean).join(' · '), height: qualityOf(stream.quality), audio: [] }));
         return { streams, candidate: found?.candidate };
       }
-      const found = await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch });
+      const found = kind === 'nuvio'
+        ? await nuvioStreams(source, title, { signal: controller.signal, fetch: options.fetch })
+        : await stremioStreams(source, title, { signal: controller.signal, fetch: options.fetch });
       // The probe checks only the first few, so put the best ones first.
       const indian = isIndian(title);
       const best = [...found].sort((a, b) => audioScore(a, indian) - audioScore(b, indian) || (b.height || 0) - (a.height || 0));
@@ -408,6 +469,6 @@ async function collectStreams(movie, { season, episode, excludedProviders = [], 
 }
 
 module.exports = {
-  collectStreams, runSource, skipReason, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
+  collectStreams, runSource, skipReason, nuvioStreams, tmdbIdOf, nuvioSources, durationOf, videoOf, markHeavy, mediaOf, inspect, minimumLength, sourceOrder, sourceDef, stremioAddons, isIndian, audioScore, sourceState, resetStateCache, stateFile, rank, dedupe, duplicateKeys, fromAddon,
   qualityOf, audioOf, sizeOf, typeOf, stremioId, kindOf, labelOf, DEFAULT_ORDER,
 };

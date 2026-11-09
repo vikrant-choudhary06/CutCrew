@@ -1,0 +1,17 @@
+# Nuvio providers used by CutCrew
+
+Copied once (not auto-synced) from the NuvioPlugin/All-in-One-Nuvio mirror on
+2026-11-09. They were picked after a test from the CutCrew server: each found
+the right title and a playable link for all 10 test titles (einthusan: Indian
+films only). Their code is obfuscated, so they run only inside the
+`nuvio-runner` container, which holds no secrets.
+
+| File | Upstream version | SHA-256 |
+|---|---|---|
+| castle.js | 2.0.0 | 1b23fb0b7740e707fb2e3c5f6f69ca51c4bb4fc6afc8f1ae851af22e3f66bb89 |
+| moviebox.js | 1.2.3 | 874dc691ce22292ffcbc7ef797000c5c2d7b26a1cc9d674503c4830ca17572d4 |
+| playimdb.js | 2.0.0 | e00e7b0d65b15622e0b6bcdce3ccc92d6226853197962348ced4af47343f07ab |
+| einthusan.js | 1.0.0 | 34adb013fbac73ba3688f9bcc93e6418e28aeda1433dd04eb50cdec9cb6a82c8 |
+
+To update one: copy the new file here, check it the same way, update this
+table, and rebuild only this container.

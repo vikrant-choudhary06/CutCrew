@@ -18,6 +18,8 @@ services:
       PORT: 5000
       SCRAPER_URL: http://imdbapi:8000
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:8080}
+      # Third-party Nuvio providers, run in their own locked container below.
+      NUVIO_URL: http://nuvio-runner:7070
       # Talks to the Telegram server below over the private Compose network.
       TELEGRAM_BOT_API_URL: http://telegram-bot-api:8081
       # Work files live on the backend-data volume, so an import or auto-save
@@ -25,6 +27,7 @@ services:
       VIDEO_WORK_DIR: /app/backend/.local/video-import
       STREAM_CACHE_DIR: /app/backend/.local/stream-cache
       AUTO_ARCHIVE_WORK_DIR: /app/backend/.local/auto-archive
+    networks: [default, nuvio]
     volumes:
       # Telegram session, video cache and import files survive rebuilds.
       - backend-data:/app/backend/.local
@@ -52,11 +55,34 @@ services:
     stop_grace_period: 20s
     logging:
       options: { max-size: 10m, max-file: "3" }
+  # Runs third-party Nuvio providers (obfuscated code from other people) away
+  # from everything else: no secrets, no volumes, read-only, no capabilities,
+  # and on its own network, so it cannot reach the database, Telegram or IMDb
+  # services. The backend only asks it for links.
+  nuvio-runner:
+    build:
+      context: .
+      dockerfile: deploy/nuvio-runner/Dockerfile
+    networks: [nuvio]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    restart: unless-stopped
+    logging:
+      options: { max-size: 5m, max-file: "2" }
   imdbapi:
     build:
       context: .
       dockerfile: IMDBAPI/Dockerfile
     restart: unless-stopped
+
+networks:
+  default:
+  nuvio:
 
 secrets:
   backend_env:

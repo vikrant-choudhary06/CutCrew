@@ -18,13 +18,16 @@ async function probe(stream, {signal,open=openMedia,depth=0,timeoutMs=4500} = {}
   try {
     response = await open(stream.link, stream.headers, 'bytes=0-4095', abort);
     if (response.status !== 200 && response.status !== 206) return {ok:false,reason:'http-'+response.status};
-    if (/html|json/i.test(response.headers['content-type'] || '')) return {ok:false,reason:'non-media-response'};
+    // Some hosts label video segments text/html to dodge blocking: decide by
+    // the bytes, and use the label only to name the failure.
+    const pageLike=/html|json/i.test(response.headers['content-type'] || '');
     const chunks=[];let length=0;
     for await (const chunk of response.data) {
       const part=Buffer.from(chunk).subarray(0,4096-length);chunks.push(part);length+=part.length;
       if (length>=4096) break;
     }
     const format=signature(Buffer.concat(chunks));
+    if(!format&&pageLike)return {ok:false,reason:'non-media-response'};
     if(format==='hls'){
       const text=Buffer.concat(chunks).toString('utf8');
       const audioTracks=depth===0?fromPlaylist(text):[];
@@ -35,7 +38,9 @@ async function probe(stream, {signal,open=openMedia,depth=0,timeoutMs=4500} = {}
       if(target.origin!==new URL(stream.link).origin)for(const key of Object.keys(headers))if(/^(cookie|authorization)$/i.test(key))delete headers[key];
       response.data.destroy();
       const segment=await probe({...stream,link:target.href,headers},{signal:abort,open,depth:depth+1,timeoutMs});
-      return {...segment,format:'hls',seekable:false,...(audioTracks.length?{audioTracks}:{})};
+      // HLS jumps segment by segment, so it can always seek (whatever the
+      // segment host says about byte ranges).
+      return {...segment,format:'hls',seekable:true,...(audioTracks.length?{audioTracks}:{})};
     }
     // MKV: the SeekHead near the start lists the Cues (the index players need to
     // jump); without it an app player can only play from the beginning.
