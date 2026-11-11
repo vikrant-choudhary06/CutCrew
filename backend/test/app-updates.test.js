@@ -87,15 +87,15 @@ test('a published update gives a multipart manifest with correct hashes, and its
   assert.match(asset.headers.get('cache-control'), /immutable/);
 });
 
-test('apps on the new domain and on the old one both get the counting download link', async () => {
+test('apps get the counting download link on CutCrew hosts only', async () => {
   const express = require('express');
   fs.writeFileSync(process.env.APP_RELEASE_FILE, JSON.stringify({ version: '1.0.3', versionCode: 4, apkUrl: 'https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk' }));
-  for (const host of ['web.cutcrew.click', 'webcutcrew.vikrant.sbs']) {
+  for (const host of ['web.cutcrew.click', 'other.example']) {
     // The proxies in front report plain http; the link must still be https.
     const app = express().use((req, _res, next) => { req.headers.host = host; req.headers['x-forwarded-proto'] = 'http'; next(); }).use('/api', require('../src/routes/appUpdates'));
     const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
     const body = await (await fetch(`http://127.0.0.1:${server.address().port}/api/app/android`)).json();
     server.close();
-    assert.equal(body.apkUrl, `https://${host}/api/app/download/android?from=app`);
+    assert.equal(body.apkUrl, host === 'web.cutcrew.click' ? `https://${host}/api/app/download/android?from=app` : 'https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk');
   }
 });

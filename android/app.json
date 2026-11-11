@@ -3,7 +3,7 @@
     "name": "CutCrew",
     "slug": "cutcrew",
     "scheme": "cutcrew",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "sbs.vikrant.cutcrew",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#0f1320",
         "foregroundImage": "./assets/android-icon-foreground.png",

@@ -1,6 +1,6 @@
 {
   "name": "cutcrew-android",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",

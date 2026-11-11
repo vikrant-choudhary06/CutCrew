@@ -15,10 +15,9 @@ const updatesDir = () => process.env.UPDATES_DIR || path.join(LOCAL, 'updates');
 // Release info: a copy in .local (editable on the server without a rebuild)
 // wins over the one in git.
 const releaseFiles = () => [process.env.APP_RELEASE_FILE, path.join(LOCAL, 'app-releases/android.json'), path.resolve(__dirname, '../../app-releases/android.json')].filter(Boolean);
-// CutCrew's own hosts: cutcrew.click, and vikrant.sbs, which apps installed
-// before the move still talk to.
-const OWN_HOST = /(^|\.)(cutcrew\.click|vikrant\.sbs)$/i;
-const ALLOWED_APK_HOSTS = /^(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com|web\.cutcrew\.click|webcutcrew\.vikrant\.sbs)$/i;
+// CutCrew's own hosts.
+const OWN_HOST = /(^|\.)cutcrew\.click$/i;
+const ALLOWED_APK_HOSTS = /^(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com|web\.cutcrew\.click)$/i;
 
 function readRelease() {
   for (const file of releaseFiles()) {
