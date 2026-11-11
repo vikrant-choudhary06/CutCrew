@@ -15,7 +15,10 @@ const updatesDir = () => process.env.UPDATES_DIR || path.join(LOCAL, 'updates');
 // Release info: a copy in .local (editable on the server without a rebuild)
 // wins over the one in git.
 const releaseFiles = () => [process.env.APP_RELEASE_FILE, path.join(LOCAL, 'app-releases/android.json'), path.resolve(__dirname, '../../app-releases/android.json')].filter(Boolean);
-const ALLOWED_APK_HOSTS = /^(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com|webcutcrew\.vikrant\.sbs)$/i;
+// CutCrew's own hosts: cutcrew.click, and vikrant.sbs, which apps installed
+// before the move still talk to.
+const OWN_HOST = /(^|\.)(cutcrew\.click|vikrant\.sbs)$/i;
+const ALLOWED_APK_HOSTS = /^(github\.com|objects\.githubusercontent\.com|release-assets\.githubusercontent\.com|web\.cutcrew\.click|webcutcrew\.vikrant\.sbs)$/i;
 
 function readRelease() {
   for (const file of releaseFiles()) {
@@ -35,8 +38,9 @@ router.get('/app/android', (req, res) => {
   if (!release) return res.status(404).json({ message: 'No release information' });
   // The app downloads through our counting link (which redirects to GitHub),
   // so in-app updates show up in the admin panel's downloads.
+  // (The proxies in front report http, so the host alone decides.)
   const host = req.get('host') || '';
-  const apkUrl = req.protocol === 'https' && /(^|.)vikrant.sbs$/i.test(host) ? `https://${host}/api/app/download/android?from=app` : release.apkUrl;
+  const apkUrl = OWN_HOST.test(host) ? `https://${host}/api/app/download/android?from=app` : release.apkUrl;
   // Not cached: the phone's HTTP cache would hide a new release.
   res.set('Cache-Control', 'no-store').json({ ...release, apkUrl });
 });

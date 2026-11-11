@@ -25,7 +25,7 @@ With `AUTO_ARCHIVE_ENABLED=true` (and Telegram storage on), a movie or episode w
 - At most `AUTO_ARCHIVE_DAILY_LIMIT` (10) new downloads per 24 hours, one at a time. Uploads that already downloaded can always finish.
 - Needs free disk of about 3x the film while it runs. Work files sit in `backend-data` (`AUTO_ARCHIVE_WORK_DIR`, `VIDEO_WORK_DIR`), so a restart resumes the upload instead of downloading again.
 - Every saved title costs bandwidth twice (download + upload to Telegram). Check your plan's monthly transfer limit.
-- The queue, today's download count and a "Try again" button are in the admin panel (ccadmin.vikrant.sbs, Storage tab).
+- The queue, today's download count and a "Try again" button are in the admin panel (ccadmin.cutcrew.click, Storage tab).
 
 Local development on Windows is unchanged: `node scripts/telegram-local.cjs` in WSL plus `npm start`, with `TELEGRAM_BOT_API_URL=http://127.0.0.1:8081`.
 

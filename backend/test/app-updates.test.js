@@ -70,12 +70,12 @@ test('a published update gives a multipart manifest with correct hashes, and its
   assert.equal(asset.text, bundle.toString());
   // Behind the proxies (which report http), a public host still gets https links.
   const express = require('express');
-  const proxied = express().use((req, _res, next) => { req.headers.host = 'webcutcrew.vikrant.sbs'; req.headers['x-forwarded-proto'] = 'http'; next(); }).use('/api', require('../src/routes/appUpdates'));
+  const proxied = express().use((req, _res, next) => { req.headers.host = 'web.cutcrew.click'; req.headers['x-forwarded-proto'] = 'http'; next(); }).use('/api', require('../src/routes/appUpdates'));
   const other = http.createServer(proxied);
   await new Promise(resolve => other.listen(0, '127.0.0.1', resolve));
   const viaProxy = await fetch(`http://127.0.0.1:${other.address().port}/api/updates/manifest`, { headers: { 'expo-platform': 'android', 'expo-runtime-version': '1.0.2' } }).then(r => r.text());
   other.close();
-  assert.match(viaProxy, /"url":"https:\/\/webcutcrew\.vikrant\.sbs\/api\/updates\/assets\?/);
+  assert.match(viaProxy, /"url":"https:\/\/web\.cutcrew\.click\/api\/updates\/assets\?/);
   // Other runtime versions (other native builds) do not get this update.
   assert.equal((await get('/api/updates/manifest', { 'expo-platform': 'android', 'expo-runtime-version': '1.0.1' })).status, 204);
   // Files outside the update folder cannot be read.
@@ -85,4 +85,17 @@ test('a published update gives a multipart manifest with correct hashes, and its
   assert.equal(missing.status, 404);
   assert.equal(missing.headers.get('cache-control'), 'no-store');
   assert.match(asset.headers.get('cache-control'), /immutable/);
+});
+
+test('apps on the new domain and on the old one both get the counting download link', async () => {
+  const express = require('express');
+  fs.writeFileSync(process.env.APP_RELEASE_FILE, JSON.stringify({ version: '1.0.3', versionCode: 4, apkUrl: 'https://github.com/vikrant-choudhary06/CutCrew/releases/download/v1.0.3/CutCrew-android-1.0.3.apk' }));
+  for (const host of ['web.cutcrew.click', 'webcutcrew.vikrant.sbs']) {
+    // The proxies in front report plain http; the link must still be https.
+    const app = express().use((req, _res, next) => { req.headers.host = host; req.headers['x-forwarded-proto'] = 'http'; next(); }).use('/api', require('../src/routes/appUpdates'));
+    const server = await new Promise(resolve => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+    const body = await (await fetch(`http://127.0.0.1:${server.address().port}/api/app/android`)).json();
+    server.close();
+    assert.equal(body.apkUrl, `https://${host}/api/app/download/android?from=app`);
+  }
 });

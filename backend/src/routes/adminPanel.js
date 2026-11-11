@@ -1,4 +1,4 @@
-// API for the admin panel (adminpannel/, served at ccadmin.vikrant.sbs).
+// API for the admin panel (adminpannel/, served at ccadmin.cutcrew.click).
 // Mounted at /api/admin/panel behind adminAuth. Changes (POST) also need the
 // X-CutCrew-Admin header, which a form on another site cannot send.
 const fs = require('fs');

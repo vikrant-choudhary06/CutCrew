@@ -1,6 +1,6 @@
 # CutCrew admin panel
 
-Served at **https://ccadmin.vikrant.sbs**. Plain HTML, CSS and JavaScript (no build step).
+Served at **https://ccadmin.cutcrew.click**. Plain HTML, CSS and JavaScript (no build step).
 
 Sign in with an admin email and password. The owner is created on the server with:
 
@@ -29,5 +29,5 @@ On the server (from the repo folder):
 sudo mkdir -p /var/www/cutcrew-admin && sudo cp -r adminpannel/. /var/www/cutcrew-admin/
 ```
 
-Nginx: the `ccadmin.vikrant.sbs` block is in `deploy/nginx/cutcrew.conf`; then `sudo certbot --nginx -d ccadmin.vikrant.sbs`.
+Nginx: the `ccadmin.cutcrew.click` block is in `deploy/nginx/cutcrew.conf`; then `sudo certbot --nginx -d ccadmin.cutcrew.click`.
 DNS: an `A` record for `ccadmin` pointing at the server.

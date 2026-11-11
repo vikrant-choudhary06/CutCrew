@@ -1,6 +1,6 @@
 // CutCrew API access, artwork URLs and small formatting helpers.
 // Same backend and endpoints as the website.
-export const BASE = 'https://webcutcrew.vikrant.sbs';
+export const BASE = 'https://web.cutcrew.click';
 
 export type Episode = { episode_number: number; title?: string };
 export type Season = { season_number: number; episodes?: Episode[] };
